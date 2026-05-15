@@ -6,16 +6,47 @@ const fmtMoney = v => v == null || v === "" ? "—"
 
 const EMPTY_FILTERS = { date_from: "", date_to: "", symbol: "", strategy: "", direction: "", result: "" }
 
-const SETUP_TAGS = ["Breakout", "Reversal", "Trend Follow", "VWAP Bounce", "Opening Range", "S/R Level", "Gap Fill", "Mean Reversion"]
+// Simple toggle tags
+const SIMPLE_TAGS = ["IFVG Setup", "Above/Below 00:00", "Continuation", "Sweep Liquidity", "Follow Major Trend", "Reversal"]
+
+// Tags with sub-options — key stored as prefix, e.g. "9:30 Range: 100 pips"
+const SUB_OPTION_TAGS = {
+  "9:30 Range": ["50 pips", "100 pips", "150 pips", "200 pips", "250+ pips"],
+  "High Impact News": ["8:30", "9:30", "10:00", "Other"],
+  "How it feels": ["Confident", "Calm", "Nervous", "Hesitant", "FOMO", "Revenge", "Overtrading"],
+  "Situation to TP": ["Smooth", "Choppy", "Stalled", "Reversed before TP", "Hit TP clean"],
+}
+
+
+// Parse setup string into simple tags + sub-option selections
+function parseSetup(raw) {
+  const tags = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : []
+  const simple = tags.filter(t => SIMPLE_TAGS.includes(t))
+  const subs = {}
+  for (const key of Object.keys(SUB_OPTION_TAGS)) {
+    const found = tags.find(t => t.startsWith(key + ": "))
+    if (found) subs[key] = found.slice(key.length + 2)
+  }
+  return { simple, subs }
+}
+
+function buildSetup(simple, subs) {
+  const parts = [...simple]
+  for (const [key, val] of Object.entries(subs)) {
+    if (val) parts.push(`${key}: ${val}`)
+  }
+  return parts.join(", ")
+}
 
 function TradeDrawer({ trade, onClose, onSaved }) {
-  const [notes, setNotes] = useState(trade?.notes || "")
-  const [setup, setSetup] = useState(trade?.setup || "")
-  const [saving, setSaving] = useState(false)
+  const [simpleTags, setSimple] = useState([])
+  const [subSels, setSubSels]   = useState({})
+  const [saving, setSaving]     = useState(false)
 
   useEffect(() => {
-    setNotes(trade?.notes || "")
-    setSetup(trade?.setup || "")
+    const { simple, subs } = parseSetup(trade?.setup || "")
+    setSimple(simple)
+    setSubSels(subs)
   }, [trade])
 
   if (!trade) return null
@@ -24,24 +55,23 @@ function TradeDrawer({ trade, onClose, onSaved }) {
 
   const save = async () => {
     setSaving(true)
+    const setup = buildSetup(simpleTags, subSels)
     try {
-      await api.updateTrade(trade.id, { notes, setup })
-      onSaved({ ...trade, notes, setup })
+      await api.updateTrade(trade.id, { setup })
+      onSaved({ ...trade, setup })
       onClose()
     } finally {
       setSaving(false)
     }
   }
 
-  const toggleTag = (tag) => {
-    const tags = setup.split(",").map(s => s.trim()).filter(Boolean)
-    const idx = tags.indexOf(tag)
-    if (idx >= 0) tags.splice(idx, 1)
-    else tags.push(tag)
-    setSetup(tags.join(", "))
+  const toggleSimple = (tag) => {
+    setSimple(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])
   }
 
-  const activeTags = setup.split(",").map(s => s.trim()).filter(Boolean)
+  const toggleSub = (key, val) => {
+    setSubSels(prev => ({ ...prev, [key]: prev[key] === val ? "" : val }))
+  }
 
   return (
     <>
@@ -49,12 +79,12 @@ function TradeDrawer({ trade, onClose, onSaved }) {
       <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
 
       {/* Drawer */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-gray-900 border-l border-gray-800 z-50 flex flex-col shadow-2xl">
+      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-gray-900 border-l border-gray-700/60 z-50 flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700/60">
           <div>
             <p className="text-sm font-semibold text-gray-100">{trade.symbol} · {trade.direction}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{trade.trade_date}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{trade.trade_date}</p>
           </div>
           <div className="flex items-center gap-3">
             <span className={`text-sm font-bold ${win ? "text-emerald-400" : "text-red-400"}`}>
@@ -75,20 +105,20 @@ function TradeDrawer({ trade, onClose, onSaved }) {
               ["Broker", trade.broker || "—"],
             ].map(([label, val]) => (
               <div key={label} className="bg-gray-800/50 rounded-xl p-3">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+                <p className="label mb-2">{label}</p>
                 <p className="text-sm font-semibold text-gray-200">{val}</p>
               </div>
             ))}
           </div>
 
-          {/* Setup tags */}
+          {/* Simple setup tags */}
           <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Setup Tag</p>
+            <p className="label mb-2">Setup</p>
             <div className="flex flex-wrap gap-2">
-              {SETUP_TAGS.map(tag => {
-                const active = activeTags.includes(tag)
+              {SIMPLE_TAGS.map(tag => {
+                const active = simpleTags.includes(tag)
                 return (
-                  <button key={tag} onClick={() => toggleTag(tag)}
+                  <button key={tag} onClick={() => toggleSimple(tag)}
                     className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                       active
                         ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
@@ -99,26 +129,34 @@ function TradeDrawer({ trade, onClose, onSaved }) {
                 )
               })}
             </div>
-            {setup && !SETUP_TAGS.some(t => activeTags.includes(t)) && (
-              <p className="text-xs text-gray-600 mt-2">Custom: {setup}</p>
-            )}
           </div>
 
-          {/* Notes */}
-          <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Notes</p>
-            <textarea
-              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-sm text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-amber-500/50"
-              rows={5}
-              placeholder="What happened? Entry reason, mistakes, market context..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-            />
-          </div>
+          {/* Sub-option tags */}
+          {Object.entries(SUB_OPTION_TAGS).map(([key, opts]) => (
+            <div key={key}>
+              <p className="label mb-2">{key}</p>
+              <div className="flex flex-wrap gap-2">
+                {opts.map(opt => {
+                  const active = subSels[key] === opt
+                  return (
+                    <button key={opt} onClick={() => toggleSub(key, opt)}
+                      className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+                        active
+                          ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300"
+                          : "bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-600 hover:text-gray-400"
+                      }`}>
+                      {opt}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-4 border-t border-gray-800">
+        <div className="px-5 py-4 border-t border-gray-700/60">
           <button onClick={save} disabled={saving}
             className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-semibold text-sm py-2.5 rounded-xl transition-colors">
             {saving ? "Saving…" : "Save Notes"}
@@ -165,7 +203,7 @@ export default function Trades() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-100">Trade Log</h1>
+          <h1 className="page-title">Trade Log</h1>
           <p className="text-sm text-gray-500 mt-0.5">{total} trades{activeCount > 0 ? " (filtered)" : ""}</p>
         </div>
         {activeCount > 0 && (
@@ -180,29 +218,29 @@ export default function Trades() {
       <div className="card p-4">
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">From</label>
+            <label className="label block mb-1.5">From</label>
             <input type="date" className="input text-sm" value={filters.date_from} onChange={e => set("date_from", e.target.value)} />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">To</label>
+            <label className="label block mb-1.5">To</label>
             <input type="date" className="input text-sm" value={filters.date_to} onChange={e => set("date_to", e.target.value)} />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Symbol</label>
+            <label className="label block mb-1.5">Symbol</label>
             <select className="select text-sm" value={filters.symbol} onChange={e => set("symbol", e.target.value)}>
               <option value="">All Symbols</option>
               {opts.symbols.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Strategy</label>
+            <label className="label block mb-1.5">Strategy</label>
             <select className="select text-sm" value={filters.strategy} onChange={e => set("strategy", e.target.value)}>
               <option value="">All Strategies</option>
               {opts.strategies.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Direction</label>
+            <label className="label block mb-1.5">Direction</label>
             <select className="select text-sm" value={filters.direction} onChange={e => set("direction", e.target.value)}>
               <option value="">All</option>
               <option>Long</option>
@@ -210,7 +248,7 @@ export default function Trades() {
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Result</label>
+            <label className="label block mb-1.5">Result</label>
             <select className="select text-sm" value={filters.result} onChange={e => set("result", e.target.value)}>
               <option value="">All</option>
               <option>Win</option>
@@ -225,13 +263,13 @@ export default function Trades() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[680px]">
             <thead>
-              <tr className="border-b border-gray-800 bg-gray-900/50">
+              <tr className="border-b border-gray-700/60 bg-gray-900/50">
                 {["Date", "Symbol", "Dir", "Entry", "Exit", "Qty", "Net PnL", "Duration", "Broker", ""].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-[10px] font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <th key={h} className="px-4 py-3 px-4 py-3 text-left label whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800/60">
+            <tbody className="divide-y divide-gray-700/40">
               {loading ? (
                 <tr><td colSpan={10} className="px-4 py-12 text-center text-gray-500">
                   <div className="flex items-center justify-center gap-2">
@@ -247,10 +285,13 @@ export default function Trades() {
                 const durStr = dur == null || dur === "" ? "—"
                   : dur < 60 ? `${Math.round(dur)}m`
                   : `${Math.floor(dur / 60)}h ${Math.round(dur % 60)}m`
-                const hasNote = !!(t.notes || t.setup)
+                const hasNote = !!(t.notes?.trim() || t.setup?.trim() || t.setup)
                 return (
                   <tr key={i} className="hover:bg-gray-800/30 transition-colors cursor-pointer" onClick={() => setSelected(t)}>
-                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{t.trade_date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <p className="text-xs text-gray-400">{t.trade_date}</p>
+                      {t.open_time && <p className="text-[10px] text-gray-600 mt-0.5">{t.open_time}</p>}
+                    </td>
                     <td className="px-4 py-3 font-semibold text-gray-100 whitespace-nowrap">{t.symbol}</td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${t.direction === "Long" ? "bg-emerald-500/15 text-emerald-400" : "bg-indigo-500/15 text-indigo-400"}`}>
@@ -260,7 +301,7 @@ export default function Trades() {
                     <td className="px-4 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">{t.entry_price}</td>
                     <td className="px-4 py-3 text-gray-400 font-mono text-xs whitespace-nowrap">{t.exit_price}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{t.quantity}</td>
-                    <td className={`px-4 py-3 font-bold font-mono whitespace-nowrap ${win ? "text-emerald-400" : "text-red-400"}`}>
+                    <td className={`px-4 py-3 font-bold mono text-base whitespace-nowrap ${win ? "text-emerald-400" : "text-red-400"}`}>
                       {fmtMoney(t.net_pnl)}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{durStr}</td>
@@ -268,7 +309,7 @@ export default function Trades() {
                     <td className="px-4 py-3 text-center">
                       {hasNote
                         ? <span className="text-amber-400 text-xs">📝</span>
-                        : <span className="text-gray-700 text-xs">+</span>}
+                        : <span className="text-gray-500 text-xs">+</span>}
                     </td>
                   </tr>
                 )
@@ -278,8 +319,8 @@ export default function Trades() {
         </div>
 
         {totalPages > 1 && (
-          <div className="px-5 py-3 border-t border-gray-800 flex items-center justify-between">
-            <span className="text-xs text-gray-500">
+          <div className="px-5 py-3 border-t border-gray-700/60 flex items-center justify-between">
+            <span className="text-xs text-gray-400">
               {total} trades · page {page} of {totalPages}
             </span>
             <div className="flex gap-2">

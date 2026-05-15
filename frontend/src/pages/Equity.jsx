@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine
 } from "recharts"
 
-const TT = { background: "#111827", border: "1px solid #1f2937", borderRadius: 8, fontSize: 12 }
+const TT = { background: "#0f172a", border: "1px solid #334155", borderRadius: 10, fontSize: 13, color: "#f1f5f9" }
 const fmtAbs = (n) => n == null ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (v) => (v >= 0 ? "+" : "") + "$" + fmtAbs(Math.abs(v))
 
@@ -21,22 +21,22 @@ function FilterBar({ filters, setFilters, opts, onClear }) {
     <div className="card p-4 mb-4">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div>
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">From</label>
+          <label className="label block mb-1.5">From</label>
           <input type="date" className="input text-sm" value={filters.date_from} onChange={e => set("date_from", e.target.value)} />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">To</label>
+          <label className="label block mb-1.5">To</label>
           <input type="date" className="input text-sm" value={filters.date_to} onChange={e => set("date_to", e.target.value)} />
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Symbol</label>
+          <label className="label block mb-1.5">Symbol</label>
           <select className="select text-sm" value={filters.symbol} onChange={e => set("symbol", e.target.value)}>
             <option value="">All Symbols</option>
             {opts.symbols.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
         <div>
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Direction</label>
+          <label className="label block mb-1.5">Direction</label>
           <select className="select text-sm" value={filters.direction} onChange={e => set("direction", e.target.value)}>
             <option value="">All</option>
             <option>Long</option>
@@ -78,7 +78,7 @@ export default function Equity() {
   return (
     <div className="space-y-4 pb-8">
       <div>
-        <h1 className="text-xl font-bold text-gray-100">Equity Curve</h1>
+        <h1 className="page-title">Equity Curve</h1>
         <p className="text-sm text-gray-500 mt-0.5">Cumulative performance over time</p>
       </div>
 
@@ -94,7 +94,7 @@ export default function Equity() {
             { label: "Profitable Months", value: `${profMonths} / ${monthly.length}`, color: "text-amber-400" },
           ].map(({ label, value, color }) => (
             <div key={label} className="card px-4 py-3 text-center">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1">{label}</p>
+              <p className="label mb-1.5">{label}</p>
               <p className={`text-base font-bold ${color}`}>{value}</p>
             </div>
           ))}
@@ -102,10 +102,10 @@ export default function Equity() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit">
+      <div className="flex gap-1 bg-gray-900 border border-gray-700/60 rounded-xl p-1 w-fit">
         {TABS.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === t.key ? "bg-amber-500 text-gray-900" : "text-gray-400 hover:text-gray-200"}`}>
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${tab === t.key ? "bg-amber-500 text-gray-900" : "text-gray-300 hover:text-gray-100"}`}>
             {t.label}
           </button>
         ))}
@@ -123,8 +123,8 @@ export default function Equity() {
 
       {!loading && tab === "equity" && eq.length > 0 && (
         <div className="card">
-          <div className="px-5 py-4 border-b border-gray-800">
-            <p className="text-sm font-semibold text-gray-300">Cumulative P&amp;L</p>
+          <div className="px-5 py-4 border-b border-gray-700/60">
+            <p className="card-title">Cumulative P&amp;L</p>
           </div>
           <div className="p-5">
             <ResponsiveContainer width="100%" height={320}>
@@ -135,10 +135,10 @@ export default function Equity() {
                     <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="trade_date" tick={{ fill: "#4b5563", fontSize: 11 }} tickLine={false} axisLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="trade_date" tick={{ fill: "#9ca3af", fontSize: 12 }} tickLine={false} axisLine={false}
                   tickFormatter={v => v?.slice(5, 10)} minTickGap={40} />
-                <YAxis tick={{ fill: "#4b5563", fontSize: 11 }} tickLine={false} axisLine={false} width={60}
+                <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickLine={false} axisLine={false} width={60}
                   tickFormatter={v => `$${Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`} />
                 <Tooltip contentStyle={TT} formatter={v => [`$${fmtAbs(v)}`, "Cumulative PnL"]}
                   labelFormatter={l => l?.slice(0, 10)} />
@@ -153,8 +153,8 @@ export default function Equity() {
 
       {!loading && tab === "drawdown" && eq.length > 0 && (
         <div className="card">
-          <div className="px-5 py-4 border-b border-gray-800">
-            <p className="text-sm font-semibold text-gray-300">Drawdown</p>
+          <div className="px-5 py-4 border-b border-gray-700/60">
+            <p className="card-title">Drawdown</p>
           </div>
           <div className="p-5">
             <ResponsiveContainer width="100%" height={280}>
@@ -165,10 +165,10 @@ export default function Equity() {
                     <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="trade_date" tick={{ fill: "#4b5563", fontSize: 11 }} tickLine={false} axisLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="trade_date" tick={{ fill: "#9ca3af", fontSize: 12 }} tickLine={false} axisLine={false}
                   tickFormatter={v => v?.slice(5, 10)} minTickGap={40} />
-                <YAxis tick={{ fill: "#4b5563", fontSize: 11 }} tickLine={false} axisLine={false} width={60}
+                <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickLine={false} axisLine={false} width={60}
                   tickFormatter={v => `$${Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`} />
                 <Tooltip contentStyle={TT} formatter={v => [`$${fmtAbs(v)}`, "Drawdown"]}
                   labelFormatter={l => l?.slice(0, 10)} />
@@ -181,15 +181,15 @@ export default function Equity() {
 
       {!loading && tab === "monthly" && monthly.length > 0 && (
         <div className="card">
-          <div className="px-5 py-4 border-b border-gray-800">
-            <p className="text-sm font-semibold text-gray-300">Monthly P&amp;L</p>
+          <div className="px-5 py-4 border-b border-gray-700/60">
+            <p className="card-title">Monthly P&amp;L</p>
           </div>
           <div className="p-5">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={monthly} margin={{ top: 5, right: 8, bottom: 5, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="month" tick={{ fill: "#4b5563", fontSize: 11 }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fill: "#4b5563", fontSize: 11 }} tickLine={false} axisLine={false} width={60}
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="month" tick={{ fill: "#9ca3af", fontSize: 12 }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} tickLine={false} axisLine={false} width={60}
                   tickFormatter={v => `$${Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`} />
                 <Tooltip contentStyle={TT} formatter={v => [`$${fmtAbs(v)}`, "Net PnL"]} />
                 <ReferenceLine y={0} stroke="#374151" />

@@ -112,8 +112,8 @@ export default function Upload() {
 
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-gray-100">Upload</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Import cTrader or standard Excel trade files</p>
+        <h1 className="page-title">Upload</h1>
+        <p className="text-sm text-gray-400 mt-0.5">Import cTrader or standard Excel trade files</p>
       </div>
 
       {/* Status */}
@@ -123,7 +123,7 @@ export default function Upload() {
           <div className="flex-1 min-w-0">
             <p className={`text-sm ${status.type === "success" ? "text-emerald-400" : "text-red-400"}`}>{status.msg}</p>
           </div>
-          <button onClick={() => setStatus(null)} className="text-gray-600 hover:text-gray-400 flex-none text-lg leading-none">×</button>
+          <button onClick={() => setStatus(null)} className="text-gray-400 hover:text-gray-200 flex-none text-lg leading-none">×</button>
         </div>
       )}
 
@@ -138,17 +138,17 @@ export default function Upload() {
         <input ref={inputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={e => handleFile(e.target.files[0])} />
         <div className="text-4xl mb-3">{loading ? "⏳" : "📤"}</div>
         <p className="font-semibold text-gray-200 text-base">{loading ? "Parsing file…" : "Drop your Excel file here"}</p>
-        <p className="text-sm text-gray-500 mt-1">or click to browse — .xlsx / .xls</p>
+        <p className="text-sm text-gray-400 mt-1">or click to browse — .xlsx / .xls</p>
         {file && <p className="text-xs text-amber-400 mt-3 font-medium">{file.name}</p>}
       </div>
 
       {/* Preview */}
       {preview && (
         <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="px-5 py-4 border-b border-gray-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-gray-300">Preview</p>
-              <p className="text-xs text-gray-500 mt-0.5">{preview.rows} rows detected — first 10 shown</p>
+              <p className="card-title">Preview</p>
+              <p className="text-xs text-gray-400 mt-0.5">{preview.rows} rows detected — first 10 shown</p>
             </div>
             <button onClick={confirmImport} disabled={loading} className="btn-primary text-sm py-2 px-5 disabled:opacity-60">
               {loading ? "Importing…" : "Confirm Import"}
@@ -157,13 +157,13 @@ export default function Upload() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs min-w-[500px]">
               <thead>
-                <tr className="border-b border-gray-800 bg-gray-900/50">
+                <tr className="border-b border-gray-700/60 bg-gray-900/50">
                   {Object.keys(preview.preview[0] || {}).map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-[10px] text-gray-500 uppercase tracking-wider font-semibold whitespace-nowrap">{h}</th>
+                    <th key={h} className="px-4 py-2.5 text-left label font-semibold whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-800/60">
+              <tbody className="divide-y divide-gray-700/40">
                 {preview.preview.map((row, i) => (
                   <tr key={i} className="hover:bg-gray-800/30">
                     {Object.values(row).map((v, j) => (
@@ -179,10 +179,10 @@ export default function Upload() {
 
       {/* Import History */}
       <div className="card overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-gray-700/60 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-gray-300">Import History</h3>
-            <p className="text-xs text-gray-500 mt-0.5">{history.length} imports · {totalTrades} trades total</p>
+            <h3 className="card-title">Import History</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{history.length} imports · {totalTrades} trades total</p>
           </div>
           {history.length > 0 && (
             <button
@@ -200,7 +200,7 @@ export default function Upload() {
         ) : history.length === 0 ? (
           <p className="text-gray-500 text-sm text-center py-10">No imports yet</p>
         ) : (
-          <div className="divide-y divide-gray-800/60">
+          <div className="divide-y divide-gray-700/40">
             {history.map((h) => (
               <div key={h.id} className="px-5 py-4 flex items-center gap-4">
                 {/* Icon */}
@@ -213,7 +213,7 @@ export default function Upload() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-200 truncate">{h.filename}</p>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                    <span className="text-xs text-gray-500">{h.imported_at?.slice(0, 16).replace("T", " ")}</span>
+                    <span className="text-xs text-gray-400">{h.imported_at?.slice(0, 16).replace("T", " ")}</span>
                     <span className="text-xs text-emerald-400">{h.rows_imported} imported</span>
                     {h.rows_rejected > 0 && <span className="text-xs text-amber-400">{h.rows_rejected} skipped</span>}
                   </div>
@@ -227,7 +227,7 @@ export default function Upload() {
                   </span>
                   <button
                     onClick={() => setConfirm({ type: "import", importId: h.id, label: h.filename, rows: h.rows_imported })}
-                    className="text-xs text-gray-600 hover:text-red-400 border border-gray-800 hover:border-red-500/30 px-2.5 py-1 rounded-lg transition-colors">
+                    className="text-xs text-gray-400 hover:text-red-400 border border-gray-700/60 hover:border-red-500/30 px-2.5 py-1 rounded-lg transition-colors">
                     Remove
                   </button>
                 </div>
@@ -239,12 +239,12 @@ export default function Upload() {
 
       {/* Supported formats */}
       <div className="card p-5">
-        <p className="text-sm font-semibold text-gray-300 mb-4">Supported Formats</p>
+        <p className="card-title mb-4">Supported Formats</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <p className="text-xs font-semibold text-amber-400 mb-2">cTrader Export (auto-detected)</p>
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-              <p className="text-xs text-gray-500 font-mono leading-5">
+            <div className="bg-gray-900 border border-gray-700/60 rounded-lg p-3">
+              <p className="text-xs text-gray-400 font-mono leading-5">
                 ID, Symbol, Opening direction<br />
                 Opening time, Closing time<br />
                 Entry price, Closing price, Net $
@@ -253,8 +253,8 @@ export default function Upload() {
           </div>
           <div>
             <p className="text-xs font-semibold text-amber-400 mb-2">Standard Template</p>
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-              <p className="text-xs text-gray-500 font-mono leading-5">
+            <div className="bg-gray-900 border border-gray-700/60 rounded-lg p-3">
+              <p className="text-xs text-gray-400 font-mono leading-5">
                 trade_date, symbol, direction<br />
                 entry_price, exit_price<br />
                 net_pnl, strategy, broker
@@ -262,7 +262,7 @@ export default function Upload() {
             </div>
           </div>
         </div>
-        <p className="text-xs text-gray-600 mt-4">Duplicate rows are automatically detected and excluded on import. Removing an import allows the same file to be re-imported.</p>
+        <p className="text-xs text-gray-400 mt-4">Duplicate rows are automatically detected and excluded on import. Removing an import allows the same file to be re-imported.</p>
       </div>
 
     </div>

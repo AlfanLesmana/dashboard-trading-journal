@@ -92,7 +92,7 @@ export default function CalendarHeatmap({ data }) {
         {/* Month labels */}
         <div className="flex mb-1 ml-8">
           {monthLabels.map((m, i) => (
-            <div key={i} className="text-[10px] text-gray-500 absolute"
+            <div key={i} className="text-xs text-gray-400 absolute"
               style={{ marginLeft: m.col * COL_W }}>
               {m.label}
             </div>
@@ -104,7 +104,7 @@ export default function CalendarHeatmap({ data }) {
           {/* Day labels */}
           <div className="flex flex-col justify-between mr-1" style={{ gap: GAP, paddingTop: 2 }}>
             {DAYS.map(d => (
-              <div key={d} className="text-[9px] text-gray-600 leading-none" style={{ height: CELL, lineHeight: CELL + "px" }}>
+              <div key={d} className="text-xs text-gray-400 leading-none" style={{ height: CELL, lineHeight: CELL + "px" }}>
                 {d[0]}
               </div>
             ))}
@@ -140,12 +140,12 @@ export default function CalendarHeatmap({ data }) {
 
         {/* Legend */}
         <div className="flex items-center gap-2 mt-3 ml-8">
-          <span className="text-[10px] text-gray-600">Less</span>
+          <span className="text-xs text-gray-400">Less</span>
           {[-1, -0.5, 0, 0.5, 1].map((v, i) => (
             <div key={i} style={{ width: CELL, height: CELL, borderRadius: 2, background: v === 0 ? "#111827" : cellColor(v, 1) }} />
           ))}
-          <span className="text-[10px] text-gray-600">More</span>
-          <span className="text-[10px] text-gray-600 ml-3">● No trade</span>
+          <span className="text-xs text-gray-400">More</span>
+          <span className="text-xs text-gray-400 ml-3">● No trade</span>
         </div>
       </div>
     </div>
