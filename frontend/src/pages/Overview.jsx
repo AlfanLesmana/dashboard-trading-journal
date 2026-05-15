@@ -10,14 +10,14 @@ const fmt = (n, dec = 2) =>
 const fmtAbs = (n, dec = 2) =>
   n == null ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec })
 const pctColor = (v) => v >= 0 ? "text-emerald-400" : "text-red-400"
-const TT = { background: "#111827", border: "1px solid #1f2937", borderRadius: 8, fontSize: 12 }
+const TT = { background: "#0f172a", border: "1px solid #334155", borderRadius: 10, fontSize: 13, color: "#f1f5f9" }
 
 function QuickStat({ label, value, valueClass = "text-gray-100", sub }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[10px] text-gray-500 uppercase tracking-widest">{label}</span>
-      <span className={`text-lg font-bold leading-tight ${valueClass}`}>{value}</span>
-      {sub && <span className="text-xs text-gray-600">{sub}</span>}
+    <div className="flex flex-col gap-1">
+      <span className="label">{label}</span>
+      <span className={`text-xl font-bold leading-tight mono ${valueClass}`}>{value}</span>
+      {sub && <span className="text-xs text-gray-500">{sub}</span>}
     </div>
   )
 }
@@ -27,6 +27,7 @@ export default function Overview() {
   const [equity, setEquity]   = useState([])
   const [recentTrades, setRecentTrades] = useState([])
   const [byDay, setByDay]     = useState([])
+  const [streaks, setStreaks]  = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function Overview() {
       setEquity((eq || []).slice(-60))
       setRecentTrades((tr?.data || []).slice(0, 6))
       setByDay(ins?.by_day || [])
+      setStreaks(ins?.streaks || null)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -67,8 +69,25 @@ export default function Overview() {
   const equityMin = equity.length ? Math.min(...equity.map(e => e.cumulative_pnl)) : 0
   const equityMax = equity.length ? Math.max(...equity.map(e => e.cumulative_pnl)) : 1
 
+  const lossAlert = streaks?.current_streak_type === "loss" && streaks?.current_streak_count >= 3
+
   return (
     <div className="space-y-4 pb-8">
+
+      {/* ── CONSECUTIVE LOSS ALERT ── */}
+      {lossAlert && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3.5">
+          <span className="text-xl flex-none mt-0.5">⚠️</span>
+          <div>
+            <p className="text-sm font-semibold text-red-400">
+              Consecutive Loss Alert — {streaks.current_streak_count} losses in a row
+            </p>
+            <p className="text-xs text-red-400/70 mt-0.5">
+              Consider stepping back to review your setups before the next trade.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── HERO ── */}
       <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gray-900">
@@ -79,9 +98,9 @@ export default function Overview() {
 
             {/* Net PnL */}
             <div className="flex-none">
-              <p className="text-[11px] text-gray-500 uppercase tracking-widest mb-1">Net Profit / Loss</p>
-              <p className={`text-5xl lg:text-6xl font-black tracking-tight ${pctColor(netPnl)}`}>{fmt(netPnl)}</p>
-              <p className="text-gray-600 text-xs mt-1.5">{totalTrades} trades recorded</p>
+              <p className="label mb-1">Net Profit / Loss</p>
+              <p className={`text-5xl lg:text-6xl font-black tracking-tight mono ${pctColor(netPnl)}`}>{fmt(netPnl)}</p>
+              <p className="text-gray-400 text-xs mt-1.5">{totalTrades} trades recorded</p>
             </div>
 
             {/* Equity spark */}
@@ -123,8 +142,8 @@ export default function Overview() {
           <div key={label} className="card flex items-center gap-3 px-4 py-4">
             <span className="text-xl flex-none">{icon}</span>
             <div className="min-w-0">
-              <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5 truncate">{label}</p>
-              <p className={`text-lg font-bold ${color}`}>{value}</p>
+              <p className="label mb-0.5 truncate">{label}</p>
+              <p className={`text-lg font-bold mono ${color}`}>{value}</p>
             </div>
           </div>
         ))}
@@ -135,8 +154,8 @@ export default function Overview() {
 
         {/* Chart */}
         <div className="card lg:col-span-3 flex flex-col">
-          <div className="px-5 py-4 border-b border-gray-800 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-300">Cumulative P&amp;L</h3>
+          <div className="px-5 py-4 border-b border-gray-700/60 flex items-center justify-between">
+            <h3 className="card-title">Cumulative P&amp;L</h3>
             <span className={`text-sm font-bold tabular-nums ${pctColor(netPnl)}`}>{fmt(netPnl)}</span>
           </div>
           <div className="flex-1 p-5" style={{ minHeight: 200 }}>
@@ -151,9 +170,9 @@ export default function Overview() {
                       <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="trade_date" tick={{ fill: "#4b5563", fontSize: 10 }} axisLine={false} tickLine={false}
+                  <XAxis dataKey="trade_date" tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false}
                     tickFormatter={(v) => v?.slice(5, 10)} minTickGap={40} />
-                  <YAxis tick={{ fill: "#4b5563", fontSize: 10 }} axisLine={false} tickLine={false} width={52}
+                  <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false} width={52}
                     tickFormatter={(v) => Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + "k" : v} />
                   <Tooltip contentStyle={TT} formatter={(v) => [fmt(v), "Cumulative PnL"]} labelFormatter={(l) => l?.slice(0, 10)} />
                   <Area type="monotone" dataKey="cumulative_pnl" stroke="#f59e0b" strokeWidth={2} fill="url(#cumPnl)" dot={false} />
@@ -165,8 +184,8 @@ export default function Overview() {
 
         {/* Recent trades */}
         <div className="card lg:col-span-2 flex flex-col">
-          <div className="px-5 py-4 border-b border-gray-800">
-            <h3 className="text-sm font-semibold text-gray-300">Recent Trades</h3>
+          <div className="px-5 py-4 border-b border-gray-700/60">
+            <h3 className="card-title">Recent Trades</h3>
           </div>
           <div className="flex-1 px-5 divide-y divide-gray-800/80">
             {recentTrades.length === 0 ? (
@@ -177,7 +196,7 @@ export default function Overview() {
                   <span className={`w-2 h-2 rounded-full flex-none ${t.net_pnl >= 0 ? "bg-emerald-400" : "bg-red-400"}`} />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-100 truncate">{t.symbol}</p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">{t.direction} · {t.trade_date?.slice(0, 10)}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{t.direction} · {t.trade_date?.slice(0, 10)}</p>
                   </div>
                 </div>
                 <span className={`text-sm font-bold tabular-nums flex-none ml-3 ${pctColor(t.net_pnl)}`}>{fmt(t.net_pnl)}</span>
@@ -192,7 +211,7 @@ export default function Overview() {
 
         {/* Win/Loss */}
         <div className="card p-5 space-y-4">
-          <h3 className="text-sm font-semibold text-gray-300">Win / Loss Breakdown</h3>
+          <h3 className="card-title">Win / Loss Breakdown</h3>
           <div>
             <div className="flex justify-between text-xs text-gray-400 mb-2">
               <span>{winCount} wins</span>
@@ -211,7 +230,7 @@ export default function Overview() {
               { label: "Expectancy",    value: fmt(expectancy),                     color: pctColor(expectancy) },
             ].map(({ label, value, color }) => (
               <div key={label} className="bg-gray-800/50 rounded-xl p-4">
-                <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">{label}</p>
+                <p className="label mb-1.5">{label}</p>
                 <p className={`font-bold text-base ${color}`}>{value}</p>
               </div>
             ))}
@@ -220,15 +239,15 @@ export default function Overview() {
 
         {/* Day of Week */}
         <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">Performance by Day</h3>
+          <h3 className="card-title mb-4">Performance by Day</h3>
           {byDay.length === 0 ? (
             <p className="text-gray-500 text-sm text-center py-8">No data</p>
           ) : (
             <>
               <ResponsiveContainer width="100%" height={140}>
                 <BarChart data={byDay} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="day" tick={{ fill: "#4b5563", fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: "#4b5563", fontSize: 10 }} axisLine={false} tickLine={false} width={44}
+                  <XAxis dataKey="day" tick={{ fill: "#9ca3af", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false} width={44}
                     tickFormatter={(v) => Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + "k" : v} />
                   <Tooltip contentStyle={TT} content={({ active, payload }) => {
                     if (!active || !payload?.length) return null
@@ -248,12 +267,12 @@ export default function Overview() {
               </ResponsiveContainer>
               <div className="grid grid-cols-7 gap-1.5 mt-3">
                 {byDay.map((d, i) => (
-                  <div key={i} className="bg-gray-800/50 rounded-lg py-2 px-1 text-center">
-                    <p className="text-[10px] text-gray-500 mb-0.5">{d.day}</p>
-                    <p className={`text-xs font-bold ${pctColor(d.net_pnl)}`}>
+                  <div key={i} className="bg-gray-900/60 rounded-lg py-2 px-1 text-center">
+                    <p className="text-xs text-gray-400 font-medium mb-0.5">{d.day}</p>
+                    <p className={`text-xs font-bold mono ${pctColor(d.net_pnl)}`}>
                       {Math.abs(d.net_pnl) >= 1000 ? (d.net_pnl / 1000).toFixed(1) + "k" : fmt(d.net_pnl, 0)}
                     </p>
-                    <p className="text-[9px] text-gray-600 mt-0.5">{fmtAbs(d.win_rate, 0)}%</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{fmtAbs(d.win_rate, 0)}%</p>
                   </div>
                 ))}
               </div>

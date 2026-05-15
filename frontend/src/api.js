@@ -47,6 +47,8 @@ export const api = {
   importHistory: () => get("/import-history"),
   deleteImport: (id) => axios.delete(BASE + `/import/${id}`, { headers: auth() }),
   deleteAllData: () => axios.delete(BASE + "/data/all", { headers: auth() }),
+  updateTrade: (id, data) => axios.patch(BASE + `/trades/${id}`, data, { headers: auth() }),
+  calendar: (f = {}) => get("/calendar", f),
   upload: (file) => {
     const fd = new FormData(); fd.append("file", file)
     return axios.post(BASE + "/upload", fd, { headers: { ...auth(), "Content-Type": "multipart/form-data" } })

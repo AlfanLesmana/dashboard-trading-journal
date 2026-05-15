@@ -3,12 +3,14 @@ from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Query, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from pydantic import BaseModel
+from typing import Optional
 import secrets, hmac
 
 from modules.database import (
     init_db, get_trades, insert_trades, save_import_record,
     file_hash_exists, get_import_history, get_distinct,
-    delete_import, delete_all_data
+    delete_import, delete_all_data, update_trade_fields
 )
 from modules.metrics import compute_metrics, equity_curve, monthly_pnl, strategy_stats, symbol_stats
 from modules.parser import parse_excel, file_hash, save_upload
@@ -302,6 +304,32 @@ async def api_upload_confirm(file: UploadFile = File(...), _=Depends(verify)):
                      {"i": inserted, "r": rejected, "id": import_id})
         conn.commit()
     return {"imported": inserted, "rejected": rejected}
+
+class TradeUpdate(BaseModel):
+    notes: Optional[str] = None
+    setup: Optional[str] = None
+
+@app.patch("/api/trades/{trade_id}")
+def api_update_trade(trade_id: int, body: TradeUpdate, _=Depends(verify)):
+    update_trade_fields(trade_id, body.model_dump(exclude_none=True))
+    return {"ok": True}
+
+@app.get("/api/calendar")
+def api_calendar(date_from=None, date_to=None, _=Depends(verify)):
+    import pandas as pd
+    df = get_trades(build_filters(date_from, date_to))
+    if df.empty: return []
+    df["net_pnl"] = pd.to_numeric(df["net_pnl"], errors="coerce").fillna(0)
+    df["trade_date"] = pd.to_datetime(df["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    df = df.dropna(subset=["trade_date"])
+    daily = df.groupby("trade_date").agg(
+        net_pnl=("net_pnl", "sum"),
+        trades=("net_pnl", "count"),
+        wins=("net_pnl", lambda x: int((x > 0).sum())),
+    ).reset_index()
+    daily["net_pnl"] = daily["net_pnl"].round(2)
+    daily["trades"] = daily["trades"].astype(int)
+    return daily.to_dict("records")
 
 @app.get("/health")
 def health(): return {"status": "ok"}

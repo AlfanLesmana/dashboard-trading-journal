@@ -4,6 +4,7 @@ import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Legend
 } from "recharts"
+import CalendarHeatmap from "../components/CalendarHeatmap"
 
 const fmt = (n, dec = 2) =>
   n == null ? "—" : (n >= 0 ? "+" : "") + Number(n).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec })
@@ -13,15 +14,32 @@ const pctColor = (v) => v >= 0 ? "text-emerald-400" : "text-red-400"
 
 function StatCard({ label, value, sub, valueClass = "text-gray-100" }) {
   return (
-    <div className="bg-gray-800/50 rounded-xl p-4">
-      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">{label}</p>
-      <p className={`text-lg font-bold ${valueClass}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-600 mt-1">{sub}</p>}
+    <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+      <p className="label mb-2">{label}</p>
+      <p className={`text-xl font-bold mono ${valueClass}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-1.5">{sub}</p>}
     </div>
   )
 }
 
-const TT = { background: "#111827", border: "1px solid #1f2937", borderRadius: 8, fontSize: 12 }
+const TT = { background: "#0f172a", border: "1px solid #334155", borderRadius: 10, fontSize: 13, color: "#f1f5f9" }
+
+function CalendarHeatmapSection({ filters }) {
+  const [calData, setCalData] = useState(null)
+
+  useEffect(() => {
+    const f = Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
+    api.calendar(f).then(setCalData)
+  }, [filters])
+
+  return (
+    <div className="card p-5">
+      <h3 className="card-title mb-1">Daily P&amp;L Heatmap</h3>
+      <p className="text-xs text-gray-400 mb-4">Last 52 weeks · Mon–Fri trading days</p>
+      <CalendarHeatmap data={calData} />
+    </div>
+  )
+}
 
 export default function Insights() {
   const [data, setData]       = useState(null)
@@ -78,7 +96,7 @@ export default function Insights() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-100">Insights</h1>
+          <h1 className="page-title">Insights</h1>
           <p className="text-sm text-gray-500 mt-0.5">Deep dive into your trading patterns and habits</p>
         </div>
         {activeCount > 0 && (
@@ -93,22 +111,22 @@ export default function Insights() {
       <div className="card p-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">From</label>
+            <label className="label block mb-1.5">From</label>
             <input type="date" className="input text-sm" value={filters.date_from} onChange={e => set("date_from", e.target.value)} />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">To</label>
+            <label className="label block mb-1.5">To</label>
             <input type="date" className="input text-sm" value={filters.date_to} onChange={e => set("date_to", e.target.value)} />
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Symbol</label>
+            <label className="label block mb-1.5">Symbol</label>
             <select className="select text-sm" value={filters.symbol} onChange={e => set("symbol", e.target.value)}>
               <option value="">All Symbols</option>
               {opts.symbols.map(s => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div>
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider block mb-1">Direction</label>
+            <label className="label block mb-1.5">Direction</label>
             <select className="select text-sm" value={filters.direction} onChange={e => set("direction", e.target.value)}>
               <option value="">All</option>
               <option>Long</option>
@@ -132,7 +150,7 @@ export default function Insights() {
 
       {/* ── PERIOD OVERVIEW ── */}
       <div className="card p-5">
-        <h3 className="text-sm font-semibold text-gray-300 mb-4">Period Overview</h3>
+        <h3 className="card-title mb-4">Period Overview</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="First Trade" value={period?.first_trade ?? "—"} />
           <StatCard label="Last Trade" value={period?.last_trade ?? "—"} />
@@ -141,12 +159,15 @@ export default function Insights() {
         </div>
       </div>
 
+      {/* ── CALENDAR HEATMAP ── */}
+      <CalendarHeatmapSection filters={filters} />
+
       {/* ── TRADE DURATION ── */}
       {duration && Object.keys(duration).length > 0 && (
         <div className="card p-5 space-y-5">
           <div>
-            <h3 className="text-sm font-semibold text-gray-300">Trade Duration</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Hold time per trade — green = win, red = loss</p>
+            <h3 className="card-title">Trade Duration</h3>
+            <p className="text-xs text-gray-400 mt-0.5">Hold time per trade — green = win, red = loss</p>
           </div>
 
           {/* Summary stats */}
@@ -172,15 +193,15 @@ export default function Insights() {
                   <p className={`text-xs font-semibold uppercase tracking-wider mb-3 ${textColor}`}>{dir}</p>
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div>
-                      <p className="text-xs text-gray-500">Avg</p>
+                      <p className="text-xs text-gray-400">Avg</p>
                       <p className="text-sm font-bold text-gray-200">{fmtDur(avg)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Avg Win</p>
+                      <p className="text-xs text-gray-400">Avg Win</p>
                       <p className="text-sm font-bold text-emerald-400">{fmtDur(avgW)}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500">Avg Loss</p>
+                      <p className="text-xs text-gray-400">Avg Loss</p>
                       <p className="text-sm font-bold text-red-400">{fmtDur(avgL)}</p>
                     </div>
                   </div>
@@ -193,9 +214,9 @@ export default function Insights() {
           {duration_history && duration_history.length > 0 && (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={duration_history} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <XAxis dataKey="date" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false}
+                <XAxis dataKey="date" tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false}
                   minTickGap={40} tickFormatter={(v) => v?.slice(5)} />
-                <YAxis tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} width={44}
+                <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false} width={44}
                   tickFormatter={(v) => v < 60 ? `${v}m` : `${Math.floor(v/60)}h`} />
                 <Tooltip
                   contentStyle={TT}
@@ -227,7 +248,7 @@ export default function Insights() {
 
       {/* ── STREAKS ── */}
       <div className="card p-5">
-        <h3 className="text-sm font-semibold text-gray-300 mb-4">Streak Analysis</h3>
+        <h3 className="card-title mb-4">Streak Analysis</h3>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Best Win Streak" value={streaks?.max_win_streak ?? "—"} sub="consecutive wins" valueClass="text-emerald-400" />
           <StatCard label="Worst Loss Streak" value={streaks?.max_loss_streak ?? "—"} sub="consecutive losses" valueClass="text-red-400" />
@@ -248,14 +269,14 @@ export default function Insights() {
 
         {/* Day of week */}
         <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-300 mb-5">Performance by Day of Week</h3>
+          <h3 className="card-title mb-5">Performance by Day of Week</h3>
           {(!by_day || by_day.length === 0) ? (
-            <p className="text-gray-500 text-sm text-center py-8">No data</p>
+            <p className="text-gray-400 text-sm text-center py-8">No data</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={by_day} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                <XAxis dataKey="day" tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#6b7280", fontSize: 11 }} axisLine={false} tickLine={false} width={48}
+                <XAxis dataKey="day" tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false} width={48}
                   tickFormatter={(v) => (Math.abs(v) >= 1000 ? (v / 1000).toFixed(1) + "k" : v)} />
                 <Tooltip contentStyle={TT} formatter={(v) => [fmt(v), "Net PnL"]} />
                 <Bar dataKey="net_pnl" radius={[4, 4, 0, 0]}>
@@ -270,9 +291,9 @@ export default function Insights() {
             <div className="grid grid-cols-3 gap-2 mt-4">
               {by_day.map((d, i) => (
                 <div key={i} className="bg-gray-800/50 rounded-lg px-3 py-2 text-center">
-                  <p className="text-xs text-gray-500">{d.day}</p>
+                  <p className="text-xs text-gray-400">{d.day}</p>
                   <p className={`text-sm font-bold ${pctColor(d.net_pnl)}`}>{fmt(d.net_pnl, 0)}</p>
-                  <p className="text-xs text-gray-600">{d.trades}t · {fmtAbs(d.win_rate, 0)}%</p>
+                  <p className="text-xs text-gray-400">{d.trades}t · {fmtAbs(d.win_rate, 0)}%</p>
                 </div>
               ))}
             </div>
@@ -281,9 +302,9 @@ export default function Insights() {
 
         {/* Long vs Short */}
         <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">Long vs Short</h3>
+          <h3 className="card-title mb-4">Long vs Short</h3>
           {(!by_direction || by_direction.length === 0) ? (
-            <p className="text-gray-500 text-sm text-center py-8">No data</p>
+            <p className="text-gray-400 text-sm text-center py-8">No data</p>
           ) : (
             <div className="space-y-3">
               {by_direction.map((d, i) => {
@@ -301,15 +322,15 @@ export default function Insights() {
                     </div>
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div>
-                        <p className="text-xs text-gray-500">Trades</p>
+                        <p className="text-xs text-gray-400">Trades</p>
                         <p className="text-sm font-semibold text-gray-200">{d.trades}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Win Rate</p>
+                        <p className="text-xs text-gray-400">Win Rate</p>
                         <p className={`text-sm font-semibold ${d.win_rate >= 50 ? "text-emerald-400" : "text-red-400"}`}>{fmtAbs(d.win_rate, 0)}%</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Profit Factor</p>
+                        <p className="text-xs text-gray-400">Profit Factor</p>
                         <p className={`text-sm font-semibold ${d.profit_factor >= 1 ? "text-emerald-400" : "text-red-400"}`}>{fmtAbs(d.profit_factor)}</p>
                       </div>
                     </div>
@@ -324,12 +345,12 @@ export default function Insights() {
       {/* ── WIN RATE BY TIME SLOT ── */}
       {slotChartData.length > 0 && (
         <div className="card p-5">
-          <h3 className="text-sm font-semibold text-gray-300 mb-1">Win Rate by Time of Day</h3>
-          <p className="text-xs text-gray-500 mb-4">30-minute slots · Long vs Short win %</p>
+          <h3 className="card-title mb-1">Win Rate by Time of Day</h3>
+          <p className="text-xs text-gray-400 mb-4">30-minute slots · Long vs Short win %</p>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={slotChartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="25%">
-              <XAxis dataKey="slot" tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 10 }} axisLine={false} tickLine={false}
+              <XAxis dataKey="slot" tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 100]} tick={{ fill: "#9ca3af", fontSize: 12 }} axisLine={false} tickLine={false}
                 width={36} tickFormatter={(v) => `${v}%`} />
               <Tooltip
                 contentStyle={TT}
@@ -353,7 +374,7 @@ export default function Insights() {
               />
               <Legend
                 formatter={(v) => v === "long_win_rate" ? "Long" : "Short"}
-                wrapperStyle={{ fontSize: 11, color: "#9ca3af" }}
+                wrapperStyle={{ fontSize: 12, color: "#9ca3af" }}
               />
               <Bar dataKey="long_win_rate" name="long_win_rate" fill="#10b981" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
               <Bar dataKey="short_win_rate" name="short_win_rate" fill="#6366f1" fillOpacity={0.85} radius={[3, 3, 0, 0]} />
@@ -384,14 +405,14 @@ export default function Insights() {
 
       {/* ── RESULT DISTRIBUTION ── */}
       <div className="card p-5">
-        <h3 className="text-sm font-semibold text-gray-300 mb-4">Trade Result Distribution</h3>
+        <h3 className="card-title mb-4">Trade Result Distribution</h3>
         {(!data.buckets || data.buckets.length === 0) ? (
-          <p className="text-gray-500 text-sm text-center py-8">No data</p>
+          <p className="text-gray-400 text-sm text-center py-8">No data</p>
         ) : (
           <ResponsiveContainer width="100%" height={170}>
             <BarChart data={data.buckets} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-              <XAxis dataKey="range" tick={{ fill: "#4b5563", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#4b5563", fontSize: 10 }} axisLine={false} tickLine={false} width={28} />
+              <XAxis dataKey="range" tick={{ fill: "#4b5563", fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: "#4b5563", fontSize: 12 }} axisLine={false} tickLine={false} width={28} />
               <Tooltip contentStyle={TT} formatter={(v) => [v, "Trades"]} />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {data.buckets.map((b, i) => (
