@@ -4,7 +4,6 @@
 @tailwind utilities;
 
 @layer base {
-  html { font-size: 14px; }
   body { @apply bg-gray-900 text-gray-100 antialiased; font-family: 'Inter', system-ui, sans-serif; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: #0f172a; }
@@ -33,10 +32,10 @@
 
   /* Page heading */
   .page-title { @apply text-2xl font-bold text-white tracking-tight; }
-  .page-sub   { @apply text-sm text-gray-400 mt-0.5; }
+  .page-sub   { @apply text-sm text-gray-400 mt-1 leading-relaxed; }
 
   /* Card section header */
-  .card-title { @apply text-sm font-semibold text-gray-200 tracking-tight; }
+  .card-title { @apply text-base font-semibold text-gray-100 tracking-tight; }
 
   /* ── Nav ── */
   .nav-link        { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-gray-400 hover:text-gray-100 hover:bg-gray-700/50 transition-all text-sm font-medium; }

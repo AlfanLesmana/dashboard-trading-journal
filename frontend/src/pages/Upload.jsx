@@ -113,7 +113,7 @@ export default function Upload() {
       {/* Header */}
       <div>
         <h1 className="page-title">Upload</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Import cTrader or standard Excel trade files</p>
+        <p className="page-sub">Import cTrader or standard Excel trade files</p>
       </div>
 
       {/* Status */}

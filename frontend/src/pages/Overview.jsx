@@ -160,7 +160,7 @@ export default function Overview() {
           </div>
           <div className="flex-1 p-5" style={{ minHeight: 200 }}>
             {equity.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center py-8">No data</p>
+              <p className="text-gray-400 text-sm text-center py-8">No data</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={equity} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -189,7 +189,7 @@ export default function Overview() {
           </div>
           <div className="flex-1 px-5 divide-y divide-gray-800/80">
             {recentTrades.length === 0 ? (
-              <p className="text-gray-500 text-sm text-center py-8">No trades</p>
+              <p className="text-gray-400 text-sm text-center py-8">No trades</p>
             ) : recentTrades.map((t, i) => (
               <div key={i} className="flex items-center justify-between py-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -241,7 +241,7 @@ export default function Overview() {
         <div className="card p-5">
           <h3 className="card-title mb-4">Performance by Day</h3>
           {byDay.length === 0 ? (
-            <p className="text-gray-500 text-sm text-center py-8">No data</p>
+            <p className="text-gray-400 text-sm text-center py-8">No data</p>
           ) : (
             <>
               <ResponsiveContainer width="100%" height={140}>

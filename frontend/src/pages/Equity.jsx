@@ -79,7 +79,7 @@ export default function Equity() {
     <div className="space-y-4 pb-8">
       <div>
         <h1 className="page-title">Equity Curve</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Cumulative performance over time</p>
+        <p className="page-sub">Cumulative performance over time</p>
       </div>
 
       <FilterBar filters={filters} setFilters={setFilters} opts={opts}

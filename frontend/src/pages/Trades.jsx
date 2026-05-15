@@ -204,7 +204,7 @@ export default function Trades() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="page-title">Trade Log</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{total} trades{activeCount > 0 ? " (filtered)" : ""}</p>
+          <p className="page-sub">{total} trades{activeCount > 0 ? " (filtered)" : ""}</p>
         </div>
         {activeCount > 0 && (
           <button onClick={() => { setPage(1); setFilters(EMPTY_FILTERS) }}
@@ -290,7 +290,7 @@ export default function Trades() {
                   <tr key={i} className="hover:bg-gray-800/30 transition-colors cursor-pointer" onClick={() => setSelected(t)}>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-xs text-gray-400">{t.trade_date}</p>
-                      {t.open_time && <p className="text-[10px] text-gray-600 mt-0.5">{t.open_time}</p>}
+                      {t.open_time && <p className="text-xs text-gray-400 mt-0.5">{t.open_time}</p>}
                     </td>
                     <td className="px-4 py-3 font-semibold text-gray-100 whitespace-nowrap">{t.symbol}</td>
                     <td className="px-4 py-3">

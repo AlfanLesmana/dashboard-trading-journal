@@ -97,7 +97,7 @@ export default function Insights() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="page-title">Insights</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Deep dive into your trading patterns and habits</p>
+          <p className="page-sub">Deep dive into your trading patterns and habits</p>
         </div>
         {activeCount > 0 && (
           <button onClick={() => setFilters({ date_from: "", date_to: "", symbol: "", direction: "" })}
@@ -167,7 +167,7 @@ export default function Insights() {
         <div className="card p-5 space-y-5">
           <div>
             <h3 className="card-title">Trade Duration</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Hold time per trade — green = win, red = loss</p>
+            <p className="text-sm text-gray-400 mt-0.5">Hold time per trade — green = win, red = loss</p>
           </div>
 
           {/* Summary stats */}
@@ -271,7 +271,7 @@ export default function Insights() {
         <div className="card p-5">
           <h3 className="card-title mb-5">Performance by Day of Week</h3>
           {(!by_day || by_day.length === 0) ? (
-            <p className="text-gray-400 text-sm text-center py-8">No data</p>
+            <p className="text-gray-400 text-sm text-center py-12">No data</p>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={by_day} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
@@ -304,7 +304,7 @@ export default function Insights() {
         <div className="card p-5">
           <h3 className="card-title mb-4">Long vs Short</h3>
           {(!by_direction || by_direction.length === 0) ? (
-            <p className="text-gray-400 text-sm text-center py-8">No data</p>
+            <p className="text-gray-400 text-sm text-center py-12">No data</p>
           ) : (
             <div className="space-y-3">
               {by_direction.map((d, i) => {
@@ -407,7 +407,7 @@ export default function Insights() {
       <div className="card p-5">
         <h3 className="card-title mb-4">Trade Result Distribution</h3>
         {(!data.buckets || data.buckets.length === 0) ? (
-          <p className="text-gray-400 text-sm text-center py-8">No data</p>
+          <p className="text-gray-400 text-sm text-center py-12">No data</p>
         ) : (
           <ResponsiveContainer width="100%" height={170}>
             <BarChart data={data.buckets} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
