@@ -27,6 +27,7 @@ export default function Overview() {
   const [equity, setEquity]   = useState([])
   const [recentTrades, setRecentTrades] = useState([])
   const [byDay, setByDay]     = useState([])
+  const [streaks, setStreaks]  = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function Overview() {
       setEquity((eq || []).slice(-60))
       setRecentTrades((tr?.data || []).slice(0, 6))
       setByDay(ins?.by_day || [])
+      setStreaks(ins?.streaks || null)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -67,8 +69,25 @@ export default function Overview() {
   const equityMin = equity.length ? Math.min(...equity.map(e => e.cumulative_pnl)) : 0
   const equityMax = equity.length ? Math.max(...equity.map(e => e.cumulative_pnl)) : 1
 
+  const lossAlert = streaks?.current_streak_type === "loss" && streaks?.current_streak_count >= 3
+
   return (
     <div className="space-y-4 pb-8">
+
+      {/* ── CONSECUTIVE LOSS ALERT ── */}
+      {lossAlert && (
+        <div className="flex items-start gap-3 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3.5">
+          <span className="text-xl flex-none mt-0.5">⚠️</span>
+          <div>
+            <p className="text-sm font-semibold text-red-400">
+              Consecutive Loss Alert — {streaks.current_streak_count} losses in a row
+            </p>
+            <p className="text-xs text-red-400/70 mt-0.5">
+              Consider stepping back to review your setups before the next trade.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── HERO ── */}
       <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gray-900">

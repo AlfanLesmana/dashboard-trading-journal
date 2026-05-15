@@ -134,6 +134,16 @@ def file_hash_exists(file_hash: str) -> bool:
         r = conn.execute(text("SELECT 1 FROM import_history WHERE file_hash=:h"), {"h": file_hash}).fetchone()
         return r is not None
 
+def update_trade_fields(trade_id: int, fields: dict):
+    allowed = {"notes", "setup"}
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    if not safe:
+        return
+    sets = ", ".join(f"{k} = :{k}" for k in safe)
+    with ENGINE.connect() as conn:
+        conn.execute(text(f"UPDATE trades SET {sets} WHERE id = :id"), {**safe, "id": trade_id})
+        conn.commit()
+
 def delete_import(import_id: int) -> int:
     with ENGINE.connect() as conn:
         result = conn.execute(text("DELETE FROM trades WHERE import_id = :id"), {"id": import_id})

@@ -4,6 +4,7 @@ import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Legend
 } from "recharts"
+import CalendarHeatmap from "../components/CalendarHeatmap"
 
 const fmt = (n, dec = 2) =>
   n == null ? "—" : (n >= 0 ? "+" : "") + Number(n).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec })
@@ -22,6 +23,23 @@ function StatCard({ label, value, sub, valueClass = "text-gray-100" }) {
 }
 
 const TT = { background: "#111827", border: "1px solid #1f2937", borderRadius: 8, fontSize: 12 }
+
+function CalendarHeatmapSection({ filters }) {
+  const [calData, setCalData] = useState(null)
+
+  useEffect(() => {
+    const f = Object.fromEntries(Object.entries(filters).filter(([, v]) => v))
+    api.calendar(f).then(setCalData)
+  }, [filters])
+
+  return (
+    <div className="card p-5">
+      <h3 className="text-sm font-semibold text-gray-300 mb-1">Daily P&amp;L Heatmap</h3>
+      <p className="text-xs text-gray-500 mb-4">Last 52 weeks · Mon–Fri trading days</p>
+      <CalendarHeatmap data={calData} />
+    </div>
+  )
+}
 
 export default function Insights() {
   const [data, setData]       = useState(null)
@@ -140,6 +158,9 @@ export default function Insights() {
           <StatCard label="Avg Trades / Day" value={fmtAbs(period?.avg_trades_per_day, 1)} sub="on active days" />
         </div>
       </div>
+
+      {/* ── CALENDAR HEATMAP ── */}
+      <CalendarHeatmapSection filters={filters} />
 
       {/* ── TRADE DURATION ── */}
       {duration && Object.keys(duration).length > 0 && (
