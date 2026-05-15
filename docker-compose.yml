@@ -1,0 +1,23 @@
+services:
+  api:
+    build: ./api
+    container_name: trading-api
+    restart: unless-stopped
+    volumes:
+      - /srv/trading-dashboard/data:/srv/trading-dashboard/data
+      - /srv/trading-dashboard/db:/srv/trading-dashboard/db
+    environment:
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-trading123}
+    env_file:
+      - .env
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: trading-frontend
+    restart: unless-stopped
+    ports:
+      - "8501:80"
+    depends_on:
+      - api

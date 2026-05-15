@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body { @apply bg-surface-dark text-gray-100 antialiased; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { @apply bg-surface-darker; }
+  ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-brand; }
+}
+
+@layer components {
+  .card { @apply bg-surface rounded-xl border border-border/50 shadow-lg; }
+  .card-header { @apply px-5 py-4 border-b border-border/50; }
+  .card-body { @apply p-5; }
+  .btn-primary { @apply bg-brand hover:bg-brand-dark text-gray-900 font-semibold px-4 py-2 rounded-lg transition-all duration-150 hover:shadow-lg hover:shadow-brand/20 active:scale-95; }
+  .btn-ghost { @apply text-gray-400 hover:text-gray-100 hover:bg-surface px-3 py-2 rounded-lg transition-all; }
+  .input { @apply bg-surface-darker border border-border text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors w-full; }
+  .select { @apply bg-surface-darker border border-border text-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors w-full; }
+  .badge-win { @apply text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-medium; }
+  .badge-loss { @apply text-xs px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 font-medium; }
+  .kpi-card { @apply card p-5 border-b-2 border-brand hover:border-brand-light transition-colors; }
+  .kpi-card.loss { @apply border-red-500 hover:border-red-400; }
+  .kpi-card.neutral { @apply border-gray-600 hover:border-gray-500; }
+  .nav-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-surface transition-all text-sm font-medium; }
+  .nav-link.active { @apply text-brand bg-brand/10 hover:bg-brand/15; }
+}
