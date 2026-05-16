@@ -21,6 +21,22 @@ HEADERS = {
 _events_cache = {"data": None, "ts": 0}
 _CACHE_TTL = 4 * 3600  # 4 hours
 
+MAJOR_CURRENCIES = {"USD", "EUR", "GBP", "JPY", "CAD", "AUD", "NZD", "CHF", "CNY", "CNH"}
+
+def _apply_filter(events, impact_filter, country_filter=None):
+    result = []
+    for e in events:
+        country = e.get("country", "").upper()
+        # Default: show all major currencies
+        allowed = country_filter if country_filter else MAJOR_CURRENCIES
+        if country not in allowed:
+            continue
+        if impact_filter:
+            if e.get("impact", "").lower() not in [i.lower() for i in impact_filter]:
+                continue
+        result.append(e)
+    return result
+
 def fetch_events(impact_filter=None):
     now = time.time()
     cache_hit = _events_cache["data"] is not None and now - _events_cache["ts"] < _CACHE_TTL
@@ -28,53 +44,60 @@ def fetch_events(impact_filter=None):
         events = _events_cache["data"]
     else:
         events = []
+        rate_limited = False
         for url in FF_URLS:
             try:
                 r = requests.get(url, headers=HEADERS, timeout=10)
+                if r.status_code == 429:
+                    rate_limited = True
+                    continue
                 r.raise_for_status()
                 events.extend(r.json())
             except Exception:
                 pass
-        _events_cache["data"] = events
+        # If rate limited and we have stale cache, serve it rather than empty
+        if rate_limited and _events_cache["data"] is not None:
+            return {
+                "events": _apply_filter(_events_cache["data"], impact_filter),
+                "cached_at": int(_events_cache["ts"]),
+                "cache_ttl": _CACHE_TTL,
+                "from_cache": True,
+                "rate_limited": True,
+            }
+        # Parse all events and store parsed form in cache
+        parsed = []
+        for e in events:
+            raw_dt = e.get("date", "")
+            dt_utc = None
+            if raw_dt:
+                try:
+                    dt = datetime.fromisoformat(raw_dt)
+                    dt_utc = dt.astimezone(timezone.utc)
+                except Exception:
+                    pass
+            parsed.append({
+                "id": e.get("id", ""),
+                "title": e.get("title", ""),
+                "country": e.get("country", "").upper(),
+                "impact": e.get("impact", ""),
+                "forecast": e.get("forecast", ""),
+                "previous": e.get("previous", ""),
+                "actual": e.get("actual", ""),
+                "datetime_utc": dt_utc.isoformat() if dt_utc else None,
+                "timestamp": int(dt_utc.timestamp()) if dt_utc else None,
+            })
+        parsed.sort(key=lambda x: x["timestamp"] or 0)
+        _events_cache["data"] = parsed
         _events_cache["ts"] = now
 
-    # Filter to USD events only + parse datetime
-    result = []
-    for e in events:
-        if e.get("country", "").upper() != "USD":
-            continue
-        impact = e.get("impact", "").lower()
-        if impact_filter and impact not in [i.lower() for i in impact_filter]:
-            continue
-
-        # Parse datetime — FF format: "2026-05-10T21:30:00-04:00" (ISO 8601)
-        raw_dt = e.get("date", "")
-        dt_utc = None
-        if raw_dt:
-            try:
-                dt = datetime.fromisoformat(raw_dt)
-                dt_utc = dt.astimezone(timezone.utc)
-            except Exception:
-                pass
-
-        result.append({
-            "id": e.get("id", ""),
-            "title": e.get("title", ""),
-            "country": e.get("country", ""),
-            "impact": e.get("impact", ""),
-            "forecast": e.get("forecast", ""),
-            "previous": e.get("previous", ""),
-            "actual": e.get("actual", ""),
-            "datetime_utc": dt_utc.isoformat() if dt_utc else None,
-            "timestamp": int(dt_utc.timestamp()) if dt_utc else None,
-        })
-
-    result.sort(key=lambda x: x["timestamp"] or 0)
+    # Filter from parsed cache
+    filtered = _apply_filter(_events_cache["data"], impact_filter)
     return {
-        "events": result,
+        "events": filtered,
         "cached_at": int(_events_cache["ts"]),
         "cache_ttl": _CACHE_TTL,
         "from_cache": cache_hit,
+        "rate_limited": False,
     }
 
 

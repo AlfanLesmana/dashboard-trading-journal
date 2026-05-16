@@ -15,6 +15,23 @@ const IMPACT_META = {
 const SYMBOLS = ["NQ=F", "ES=F", "YM=F", "RTY=F"]
 const SYMBOL_LABELS = { "NQ=F": "NQ (Nasdaq)", "ES=F": "ES (S&P 500)", "YM=F": "YM (Dow)", "RTY=F": "RTY (Russell)" }
 
+// Currency code → flag emoji + label
+const CURRENCY_FLAGS = {
+  USD: { flag: "🇺🇸", label: "USD" },
+  EUR: { flag: "🇪🇺", label: "EUR" },
+  GBP: { flag: "🇬🇧", label: "GBP" },
+  JPY: { flag: "🇯🇵", label: "JPY" },
+  CAD: { flag: "🇨🇦", label: "CAD" },
+  AUD: { flag: "🇦🇺", label: "AUD" },
+  NZD: { flag: "🇳🇿", label: "NZD" },
+  CHF: { flag: "🇨🇭", label: "CHF" },
+  CNY: { flag: "🇨🇳", label: "CNY" },
+  CNH: { flag: "🇨🇳", label: "CNH" },
+}
+function countryFlag(code) {
+  return CURRENCY_FLAGS[code?.toUpperCase()] || { flag: "🌐", label: code || "?" }
+}
+
 // ── localStorage cache helpers ──
 const LS_EVENTS_KEY = "econ_events_cache"
 const LS_VOL_PREFIX = "econ_vol_cache_"
@@ -114,14 +131,15 @@ function fmtTimeLocal(isoUtc) {
 }
 
 export default function EconCalendar() {
-  const [events, setEvents]     = useState([])
-  const [evSavedAt, setEvSavedAt] = useState(null)
-  const [vol, setVol]           = useState(null)
+  const [events, setEvents]         = useState([])
+  const [evSavedAt, setEvSavedAt]   = useState(null)
+  const [rateLimited, setRateLimited] = useState(false)
+  const [vol, setVol]               = useState(null)
   const [volSavedAt, setVolSavedAt] = useState(null)
   const [loadingEv, setLoadingEv]   = useState(true)
   const [loadingVol, setLoadingVol] = useState(true)
   const [impactFilter, setImpactFilter] = useState(["High", "Medium"])
-  const [volSymbol, setVolSymbol] = useState("NQ=F")
+  const [volSymbol, setVolSymbol]   = useState("NQ=F")
   const now = useNow()
 
   const loadEvents = (force = false) => {
@@ -146,6 +164,7 @@ export default function EconCalendar() {
         const all = resp?.events || []
         lsSet(cacheKey, all)
         setEvSavedAt(Date.now())
+        setRateLimited(resp?.rate_limited || false)
         const filtered = all.filter(e =>
           impactFilter.map(i => i.toLowerCase()).includes((e.impact || "").toLowerCase())
         )
@@ -251,6 +270,17 @@ export default function EconCalendar() {
         )
       })()}
 
+      {/* Rate limit warning */}
+      {rateLimited && (
+        <div className="card p-4 border-amber-500/30 bg-amber-500/5 flex items-center gap-3">
+          <span className="text-amber-400 text-lg">⚠️</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-400">Forex Factory rate limited</p>
+            <p className="text-xs text-gray-400 mt-0.5">Serving cached data. FF allows only 2 requests per 5 min — limit resets automatically. Avoid manual refresh for now.</p>
+          </div>
+        </div>
+      )}
+
       {/* Events list */}
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-700/50 flex items-center justify-between">
@@ -287,9 +317,16 @@ export default function EconCalendar() {
                   const isPast = cd?.past
                   return (
                     <div key={e.id || i}
-                      className={`px-5 py-3.5 flex items-center gap-4 hover:bg-gray-800/30 transition-colors ${isPast ? "opacity-40" : ""}`}>
+                      className={`px-5 py-3 flex items-center gap-3 hover:bg-gray-800/30 transition-colors ${isPast ? "opacity-40" : ""}`}>
                       {/* Impact dot */}
                       <span className={`w-2 h-2 rounded-full flex-none ${m.dot}`} />
+
+                      {/* Flag + currency */}
+                      <div className="flex-none w-10 text-center">
+                        <span className="text-lg leading-none" title={countryFlag(e.country).label}>
+                          {countryFlag(e.country).flag}
+                        </span>
+                      </div>
 
                       {/* Time */}
                       <div className="w-20 flex-none">
@@ -300,7 +337,7 @@ export default function EconCalendar() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-100 truncate">{e.title}</p>
                         <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
-                          {e.forecast && <span>Forecast: <span className="text-gray-300">{e.forecast}</span></span>}
+                          {e.forecast && <span>Fcst: <span className="text-gray-300">{e.forecast}</span></span>}
                           {e.previous && <span>Prev: <span className="text-gray-300">{e.previous}</span></span>}
                           {e.actual   && <span>Actual: <span className={e.actual !== e.previous ? "text-amber-400" : "text-gray-300"}>{e.actual}</span></span>}
                         </div>
@@ -313,7 +350,7 @@ export default function EconCalendar() {
 
                       {/* Countdown */}
                       {cd && (
-                        <div className="text-right flex-none w-28">
+                        <div className="text-right flex-none w-24">
                           <p className={`text-xs font-bold mono ${
                             cd.past ? "text-gray-600" :
                             cd.soon ? "text-red-400" :
