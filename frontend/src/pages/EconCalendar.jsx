@@ -150,6 +150,7 @@ function getVerdict(event) {
       color: "text-blue-400",
       bg: "bg-blue-500/10 border-blue-500/30",
       icon: "👀",
+      why: "No numeric forecast — verdict depends entirely on hawkish vs dovish language during the event.",
       reason: rule.reason,
       caveat: rule.caveat,
       rule,
@@ -161,12 +162,19 @@ function getVerdict(event) {
 
   // No forecast available yet
   if (isNaN(fc) || isNaN(pr)) {
+    const hasFc = event.forecast && event.forecast.trim()
+    const haPr  = event.previous && event.previous.trim()
     return {
       verdict: "pending",
       label: "No Forecast Yet",
       color: "text-gray-400",
       bg: "bg-gray-700/30 border-gray-600/30",
       icon: "⏳",
+      why: hasFc && !haPr
+        ? `Forecast is ${event.forecast} but no previous reading to compare against.`
+        : !hasFc && haPr
+          ? `Previous was ${event.previous} but no consensus forecast published yet.`
+          : "Forex Factory hasn't published a consensus forecast for this event yet.",
       reason: rule.reason,
       caveat: rule.caveat,
       rule,
@@ -182,6 +190,7 @@ function getVerdict(event) {
       color: "text-gray-300",
       bg: "bg-gray-700/30 border-gray-600/30",
       icon: "➡️",
+      why: `Forecast (${event.forecast}) matches previous (${event.previous}) — no change expected, unlikely to move markets significantly.`,
       reason: "Forecast matches previous — no directional surprise expected",
       caveat: rule.caveat,
       rule,
@@ -190,12 +199,25 @@ function getVerdict(event) {
   }
 
   const bullish = rule.bullishIfHigher ? higher : !higher
+  const dirWord  = higher ? "higher" : "lower"
+  const goodWord = bullish ? "positive" : "negative"
+
+  // Build a specific why sentence based on the event type and direction
+  const why = rule.bullishIfHigher
+    ? bullish
+      ? `Forecast (${event.forecast}) > Previous (${event.previous}) — a ${dirWord} reading signals strength, which is ${goodWord} for the dollar.`
+      : `Forecast (${event.forecast}) < Previous (${event.previous}) — a ${dirWord} reading signals weakness, putting pressure on the dollar.`
+    : bullish
+      ? `Forecast (${event.forecast}) < Previous (${event.previous}) — for this indicator, a lower reading is actually ${goodWord} for USD (less ${event.title.toLowerCase().includes("claim") ? "joblessness" : "weakness"}).`
+      : `Forecast (${event.forecast}) > Previous (${event.previous}) — for this indicator, a higher reading is ${goodWord} for USD (rising ${event.title.toLowerCase().includes("unemploy") ? "unemployment" : "pressure"} weighs on the dollar).`
+
   return {
     verdict: bullish ? "bullish" : "bearish",
     label: bullish ? "Bullish USD" : "Bearish USD",
     color: bullish ? "text-emerald-400" : "text-red-400",
     bg: bullish ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30",
     icon: bullish ? "📈" : "📉",
+    why,
     reason: rule.reason,
     caveat: rule.caveat,
     rule,
@@ -307,7 +329,11 @@ export default function EconCalendar() {
   const [impactFilter, setImpactFilter] = useState(["High", "Medium"])
   const [weekFilter, setWeekFilter]     = useState("all")  // "this" | "next" | "all"
   const [volSymbol, setVolSymbol]       = useState("NQ=F")
-  const [volInfoOpen, setVolInfoOpen]   = useState(false)
+  const [volInfoOpen, setVolInfoOpen]     = useState(false)
+  const [outlookOpen, setOutlookOpen]     = useState(false)
+  const [calInfoOpen, setCalInfoOpen]     = useState(false)
+  const [glossaryOpen, setGlossaryOpen]   = useState(false)
+  const [glossarySearch, setGlossarySearch] = useState("")
   const now = useNow()
 
   const applyFilter = (all) => all.filter(e =>
@@ -520,16 +546,28 @@ export default function EconCalendar() {
 
       {/* ── USD Outlook ── */}
       {usdVerdicts.length > 0 && (
-        <div className="card p-5 space-y-4">
-          <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="card overflow-hidden">
+          {/* Clickable header — always visible */}
+          <button
+            onClick={() => setOutlookOpen(o => !o)}
+            className="w-full flex items-start justify-between gap-3 px-5 py-4 hover:bg-gray-800/30 transition-colors text-left">
             <div>
-              <h3 className="card-title flex items-center gap-2">🇺🇸 USD Outlook <span className="text-xs font-normal text-gray-500 ml-1">— Upcoming High Impact</span></h3>
-              <p className="text-xs text-gray-500 mt-0.5">Forecast-based directional bias. Based on consensus vs previous — not a guarantee.</p>
+              <h3 className="card-title flex items-center gap-2">
+                🇺🇸 USD Outlook
+                <span className="text-xs font-normal text-gray-500">— High Impact · {usdVerdicts.filter(e => !e.isPast).length} upcoming, {usdVerdicts.filter(e => e.isPast).length} released</span>
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5">Forecast-based directional bias — not a guarantee. Always manage risk.</p>
             </div>
-            <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-gray-800/60 border-gray-700/50 text-gray-500">
-              <span>⚠️</span><span>Educational only — always manage risk</span>
+            <div className="flex items-center gap-3 flex-none mt-0.5">
+              <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-gray-800/60 border-gray-700/50 text-gray-500">
+                <span>⚠️</span><span>Educational only</span>
+              </div>
+              <span className="text-gray-500 text-xs">{outlookOpen ? "▲ hide" : "▼ show"}</span>
             </div>
-          </div>
+          </button>
+
+          {/* Collapsible body — hidden by default */}
+          {outlookOpen && <div className="px-5 pb-5 space-y-4 border-t border-gray-700/50">
 
           {/* Past / Upcoming divider labels */}
           {(() => {
@@ -547,6 +585,18 @@ export default function EconCalendar() {
             }
             const Card = ({ e }) => {
               const v = e.verdict
+
+              // For released events, override the 'why' with actual vs forecast explanation
+              let whyText = v.why
+              if (e.isPast && e.actual && e.forecast && e.actualResult) {
+                const resultMap = {
+                  beat:   `Actual (${e.actual}) beat the forecast (${e.forecast || "—"}) — the data came in stronger than expected.`,
+                  miss:   `Actual (${e.actual}) missed the forecast (${e.forecast || "—"}) — the data came in weaker than expected.`,
+                  inline: `Actual (${e.actual}) matched the forecast (${e.forecast || "—"}) — no surprise.`,
+                }
+                whyText = resultMap[e.actualResult] || v.why
+              }
+
               const diffStr = e.isPast && e.actual
                 ? `Actual ${e.actual} · Fcst ${e.forecast || "—"} · Prev ${e.previous || "—"}`
                 : (!isNaN(v.fc) && !isNaN(v.pr))
@@ -569,18 +619,27 @@ export default function EconCalendar() {
                     </div>
                   </div>
 
-                  {/* Date + numbers row */}
-                  <div className="flex items-center justify-between text-xs text-gray-400 gap-2 flex-wrap">
-                    <span className="mono">{fmtDateLocal(e.datetime_utc)} · {fmtTimeLocal(e.datetime_utc)}</span>
-                    {diffStr && <span className={`font-semibold ${e.isPast && e.actual ? (e.actualResult === "beat" ? "text-emerald-400" : e.actualResult === "miss" ? "text-red-400" : "text-gray-400") : v.color}`}>{diffStr}</span>}
+                  {/* Date + time */}
+                  <p className="text-xs text-gray-400 mono">{fmtDateLocal(e.datetime_utc)} · {fmtTimeLocal(e.datetime_utc)}</p>
+
+                  {/* WHY — specific number-based explanation */}
+                  <div className={`text-xs font-semibold px-3 py-2 rounded-lg border ${v.bg} ${v.color}`}>
+                    {whyText}
                   </div>
 
-                  {/* Reason */}
-                  <p className="text-xs text-gray-300 leading-relaxed">{v.reason}</p>
+                  {/* Data row — actual for past, forecast vs prev for upcoming */}
+                  {diffStr && (
+                    <p className={`text-xs font-mono ${e.isPast && e.actual ? (e.actualResult === "beat" ? "text-emerald-400" : e.actualResult === "miss" ? "text-red-400" : "text-gray-400") : "text-gray-400"}`}>
+                      {diffStr}
+                    </p>
+                  )}
+
+                  {/* General reason — why this event type matters */}
+                  <p className="text-xs text-gray-500 leading-relaxed border-t border-gray-700/30 pt-2">{v.reason}</p>
 
                   {/* Caveat */}
                   {v.caveat && (
-                    <p className="text-[11px] text-gray-500 italic border-t border-gray-700/40 pt-2">{v.caveat}</p>
+                    <p className="text-[11px] text-gray-500 italic border-t border-gray-700/40 pt-2">⚠️ {v.caveat}</p>
                   )}
                 </div>
               )
@@ -614,15 +673,101 @@ export default function EconCalendar() {
             <span className="pt-2 flex items-center gap-1"><span className="text-blue-400 font-bold">👀 Watch Tone</span> — Fed speech, direction = language</span>
             <span className="pt-2 flex items-center gap-1"><span className="text-emerald-400 font-bold">Beat ✓</span> / <span className="text-red-400 font-bold ml-1">Miss ✗</span> — actual vs forecast after release</span>
           </div>
+          </div>}  {/* end collapsible body */}
         </div>
       )}
 
       {/* Events list */}
       <div className="card overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-700/50 flex items-center justify-between">
-          <h3 className="card-title">Upcoming Events</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="card-title">Upcoming Events</h3>
+            <button onClick={() => setCalInfoOpen(o => !o)}
+              className="text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1 transition-colors">
+              <span>💡</span><span>{calInfoOpen ? "hide guide" : "how to read"}</span>
+            </button>
+          </div>
           <p className="text-xs text-gray-500">Times shown in your local timezone</p>
         </div>
+
+        {/* ── How to read the calendar ── */}
+        {calInfoOpen && (
+          <div className="border-b border-gray-700/50 px-5 py-4 space-y-4 text-sm bg-gray-900/30">
+
+            {/* Fields */}
+            <div className="space-y-2">
+              <p className="text-gray-200 font-semibold text-xs uppercase tracking-widest">📋 What each column means</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {[
+                  { field: "Forecast",  color: "text-gray-300", desc: "The consensus estimate from economists and analysts — what the market expects the number to be. Think of it as the 'priced in' number. If the actual matches this, little market reaction is expected." },
+                  { field: "Previous",  color: "text-gray-300", desc: "The actual reading from the last time this event was released (prior period). Used as the baseline — a large gap between forecast and previous already tells you sentiment is shifting." },
+                  { field: "Actual",    color: "text-amber-400", desc: "The real released number. Shown after the event is published. This is the number that moves markets — the bigger the gap vs forecast, the bigger the reaction tends to be." },
+                  { field: "Countdown", color: "text-gray-300", desc: "Time remaining until the event releases. Events within 5 minutes pulse red. Events already released show 'Live / Past'." },
+                ].map(({ field, color, desc }) => (
+                  <div key={field} className="rounded-lg bg-gray-800/50 border border-gray-700/40 p-3 space-y-1">
+                    <p className={`text-xs font-bold ${color}`}>{field}</p>
+                    <p className="text-xs text-gray-400 leading-relaxed">{desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Impact levels */}
+            <div className="space-y-2">
+              <p className="text-gray-200 font-semibold text-xs uppercase tracking-widest">🔴 Impact levels</p>
+              <div className="space-y-2">
+                {[
+                  { level: "High",   dot: "bg-red-400",   color: "text-red-400",   desc: "Major market-moving event. Expect sharp, fast price moves — sometimes 50–200+ points on NQ within seconds. NFP, CPI, Fed Rate Decisions fall here. Reduce size or stay out if you're not comfortable trading news." },
+                  { level: "Medium", dot: "bg-amber-400", color: "text-amber-400", desc: "Notable event that can move markets, especially if it surprises. Usually causes a brief spike then stabilises. Good to be aware of, but less likely to completely reverse a trend." },
+                  { level: "Low",    dot: "bg-gray-500",  color: "text-gray-400",  desc: "Routine data releases with minimal expected impact. Safe to mostly ignore unless combined with a high-impact day. Markets usually shrug these off." },
+                ].map(({ level, dot, color, desc }) => (
+                  <div key={level} className="flex items-start gap-3 rounded-lg bg-gray-800/50 border border-gray-700/40 p-3">
+                    <span className={`w-2.5 h-2.5 rounded-full flex-none mt-1 ${dot}`} />
+                    <div>
+                      <p className={`text-xs font-bold ${color}`}>{level} Impact</p>
+                      <p className="text-xs text-gray-400 leading-relaxed mt-0.5">{desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Beat / miss */}
+            <div className="space-y-2">
+              <p className="text-gray-200 font-semibold text-xs uppercase tracking-widest">📊 Reading the numbers — beat vs miss</p>
+              <div className="rounded-lg bg-gray-800/50 border border-gray-700/40 p-3 space-y-2 text-xs text-gray-400 leading-relaxed">
+                <p>The market reacts to the <span className="text-gray-200 font-semibold">gap between Actual and Forecast</span>, not the number itself. A "good" reading that was already expected will barely move price. A "bad" reading nobody saw coming can crash or spike the market.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+                  <div className="rounded bg-emerald-500/10 border border-emerald-500/20 p-2">
+                    <p className="text-emerald-400 font-bold">Actual &gt; Forecast</p>
+                    <p className="mt-0.5">Beat — stronger than expected. For USD-positive events (NFP, GDP), this pushes USD up. For USD-negative events (Jobless Claims), a beat means fewer claims → also USD-positive.</p>
+                  </div>
+                  <div className="rounded bg-red-500/10 border border-red-500/20 p-2">
+                    <p className="text-red-400 font-bold">Actual &lt; Forecast</p>
+                    <p className="mt-0.5">Miss — weaker than expected. Generally USD-negative for growth/jobs data. The bigger the miss, the sharper the move.</p>
+                  </div>
+                  <div className="rounded bg-gray-700/40 border border-gray-600/30 p-2">
+                    <p className="text-gray-300 font-bold">Actual = Forecast</p>
+                    <p className="mt-0.5">In-line — no surprise. Price often drifts or reverses a pre-news move. Focus shifts back to technicals.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Practical tips */}
+            <div className="space-y-2">
+              <p className="text-gray-200 font-semibold text-xs uppercase tracking-widest">🎯 Practical trading tips</p>
+              <ul className="space-y-1.5 text-xs text-gray-400 pl-3 list-disc list-outside marker:text-gray-600 leading-relaxed">
+                <li><span className="text-gray-200">The first candle after release is noise.</span> The initial spike is often reversed within 1–5 minutes as algos hunt stop losses. Wait for a retest or a clean directional close before entering.</li>
+                <li><span className="text-gray-200">Avoid holding positions into High Impact events</span> unless you've sized down significantly. Slippage and spreads widen dramatically at release time.</li>
+                <li><span className="text-gray-200">Check Forecast vs Previous before market open.</span> A large gap (e.g. NFP forecasted at 200K vs previous 150K) signals the bar is high — a miss is more punishing.</li>
+                <li><span className="text-gray-200">Multiple events on the same day stack volatility.</span> A day with CPI + Retail Sales + Fed speech is a high-risk session — treat it like a different market.</li>
+                <li>Data source: <span className="text-gray-300">Forex Factory</span> (forexfactory.com) — refreshed manually via the ↻ button. Cached to avoid rate limits.</li>
+              </ul>
+            </div>
+
+          </div>
+        )}
 
         {loadingEv ? (
           <div className="flex items-center justify-center h-48">
@@ -713,6 +858,253 @@ export default function EconCalendar() {
           </div>
         )}
       </div>
+
+      {/* ── Event Glossary ── */}
+      {(() => {
+        const GLOSSARY = [
+          {
+            abbr: "NFP", full: "Non-Farm Payrolls", category: "Employment",
+            release: "Monthly — 1st Friday, 8:30 AM ET",
+            impact: "bullish",
+            what: "Measures the number of new jobs added in the US economy (excluding farm workers, government, and non-profits). The single most-watched economic indicator in the world.",
+            why: "Jobs = spending = growth. A strong NFP tells the Fed the economy can handle higher rates → USD rallies. A weak NFP raises recession fears and rate-cut bets → USD falls.",
+            tip: "Revisions to prior months matter too. A beat on headline NFP with a big downward revision to last month can still hurt USD.",
+          },
+          {
+            abbr: "ADP", full: "ADP Non-Farm Employment", category: "Employment",
+            release: "Monthly — Wednesday before NFP, 8:15 AM ET",
+            impact: "bullish",
+            what: "Private payroll estimate from payroll processing giant ADP. Covers private-sector jobs only (no government). Released ~2 days before the official NFP.",
+            why: "Used as an early preview of NFP. A big ADP beat raises NFP expectations, pre-moving USD. However, ADP and NFP correlation is inconsistent — don't over-rely on it.",
+            tip: "When ADP and NFP diverge significantly, the market focuses on NFP as the authoritative number.",
+          },
+          {
+            abbr: "CPI", full: "Consumer Price Index", category: "Inflation",
+            release: "Monthly — ~2nd week, 8:30 AM ET",
+            impact: "bullish",
+            what: "Measures the average change in prices paid by consumers for a basket of goods and services (food, housing, transport, medical, etc.). Two variants: headline CPI (all items) and Core CPI (excludes volatile food & energy).",
+            why: "Inflation is the Fed's primary mandate. High CPI → Fed keeps rates high or hikes → USD bullish. Falling CPI → rate cuts expected → USD bearish. Core CPI is more important to the Fed because it strips out noise.",
+            tip: "Month-over-month (m/m) is more market-moving than year-over-year (y/y). A surprise 0.1% deviation from forecast can move NQ 100+ points.",
+          },
+          {
+            abbr: "PPI", full: "Producer Price Index", category: "Inflation",
+            release: "Monthly — ~2nd week (day before or after CPI), 8:30 AM ET",
+            impact: "bullish",
+            what: "Measures price changes from the perspective of the seller/producer — what factories and businesses charge before goods reach consumers. Think of it as upstream inflation.",
+            why: "PPI leads CPI by ~2–3 months. Rising PPI means businesses will eventually pass costs to consumers → future CPI will rise → Fed stays hawkish → USD positive. Traders use PPI to predict where CPI is heading.",
+            tip: "Core PPI (ex food & energy) is the version the Fed tracks most closely.",
+          },
+          {
+            abbr: "PCE", full: "Personal Consumption Expenditures Price Index", category: "Inflation",
+            release: "Monthly — last Friday of month, 8:30 AM ET",
+            impact: "bullish",
+            what: "The Fed's officially preferred inflation gauge. Broader than CPI — covers more categories and adjusts for substitution (e.g. if beef gets expensive, people buy chicken). Core PCE excludes food & energy.",
+            why: "The Fed literally targets 2% Core PCE. Any deviation moves rate-cut/hike expectations directly. A hot PCE print delays rate cuts → USD bullish. A cool print accelerates cuts → USD bearish.",
+            tip: "Often overshadowed by CPI in media, but more important to the actual Fed decision. Pay close attention.",
+          },
+          {
+            abbr: "GDP", full: "Gross Domestic Product", category: "Growth",
+            release: "Quarterly — Advance (1st estimate) ~1 month after quarter end, 8:30 AM ET",
+            impact: "bullish",
+            what: "Total monetary value of all goods and services produced in the US. Three releases per quarter: Advance (estimate), Preliminary (revised), Final. Advance release moves markets most.",
+            why: "GDP above expectations = strong economy = Fed can keep rates higher = USD up. GDP miss or negative print (recession territory) = rate cut expectations surge = USD down.",
+            tip: "GDP above 2.5% is considered strong. Two consecutive negative quarters = technical recession — major market event.",
+          },
+          {
+            abbr: "ISM Mfg", full: "ISM Manufacturing PMI", category: "Sentiment / PMI",
+            release: "Monthly — 1st business day, 10:00 AM ET",
+            impact: "bullish",
+            what: "Survey of purchasing managers at US manufacturing companies. Asks about new orders, production, employment, and prices. Scale: above 50 = expansion, below 50 = contraction.",
+            why: "Manufacturing is a leading indicator of economic activity. A rising ISM signals businesses are ordering more → growth ahead → USD positive. A reading below 50 signals factory slowdown.",
+            tip: "The 'Prices Paid' sub-index within ISM is an inflation signal the Fed watches for early warning.",
+          },
+          {
+            abbr: "ISM Svcs", full: "ISM Services PMI", category: "Sentiment / PMI",
+            release: "Monthly — 3rd business day, 10:00 AM ET",
+            impact: "bullish",
+            what: "Same survey methodology as ISM Manufacturing but for the services sector (retail, healthcare, finance, hospitality). Services = ~80% of US GDP so this matters more than manufacturing PMI.",
+            why: "A strong services sector sustains consumer spending and growth. Above 50 = expanding = USD positive. A surprise drop below 50 in services is a major recession warning.",
+            tip: "Employment and Business Activity sub-indices within ISM Services are the most watched components.",
+          },
+          {
+            abbr: "Retail Sales", full: "Retail Sales", category: "Growth",
+            release: "Monthly — ~2nd week, 8:30 AM ET",
+            impact: "bullish",
+            what: "Measures total receipts of retail stores — everything from grocery stores to car dealerships. Covers about 30% of total consumer spending but is one of the most timely spending indicators.",
+            why: "Consumer spending = 70% of US GDP. Strong retail sales → GDP growth → Fed hawkish → USD up. Weak retail sales → slowdown fears → USD down.",
+            tip: "Control group (ex auto, gas, food service) is what feeds directly into GDP calculations — pay attention to that sub-figure.",
+          },
+          {
+            abbr: "Unemployment Rate", full: "Unemployment Rate", category: "Employment",
+            release: "Monthly — 1st Friday with NFP, 8:30 AM ET",
+            impact: "bearish",
+            what: "Percentage of the labor force that is jobless and actively looking for work. Released simultaneously with NFP. Different from NFP — measures the stock of unemployed vs the flow of new jobs.",
+            why: "Rising unemployment → economic weakness → Fed cuts rates → USD bearish. Falling unemployment → tight labor market → inflation risk → Fed stays hawkish → USD bullish. Below 4% is considered healthy in the US.",
+            tip: "Unemployment can fall for a bad reason (people leaving the workforce). Always check Labor Force Participation Rate alongside it.",
+          },
+          {
+            abbr: "Jobless Claims", full: "Initial Jobless Claims", category: "Employment",
+            release: "Weekly — every Thursday, 8:30 AM ET",
+            impact: "bearish",
+            what: "Number of people filing for unemployment insurance for the first time in the past week. The most frequently released labor market indicator — weekly data gives a real-time pulse.",
+            why: "Higher claims = more people losing jobs = economy weakening = rate cut expectations rise = USD bearish. Lower claims = healthy job market = Fed can stay tight = USD positive.",
+            tip: "Weekly data is noisy. Watch the 4-week moving average, not a single print. Spikes above 300K tend to cause significant USD moves.",
+          },
+          {
+            abbr: "FOMC Rate", full: "Federal Funds Rate Decision", category: "Fed / Policy",
+            release: "8x per year — Wednesday, 2:00 PM ET (followed by press conference at 2:30 PM)",
+            impact: "bullish",
+            what: "The Federal Open Market Committee votes on the target interest rate. Decision is either: hike (raise rates), cut (lower rates), or hold (unchanged). The press conference that follows often moves markets more than the decision itself.",
+            why: "Higher rates = better return on USD-denominated assets = demand for USD rises. Rate cuts = USD weakens. Even a 'hold' can be bullish if market expected a cut.",
+            tip: "Read the statement carefully for 'forward guidance' — words like 'restrictive', 'data dependent', or 'patient' tell you more about the next move than the decision itself.",
+          },
+          {
+            abbr: "FOMC Minutes", full: "FOMC Meeting Minutes", category: "Fed / Policy",
+            release: "3 weeks after each FOMC meeting, 2:00 PM ET",
+            impact: "watch",
+            what: "Detailed record of what FOMC members discussed during their meeting — their views on inflation, growth, labor market, and rate path. More granular than the post-meeting statement.",
+            why: "Hawkish minutes (members worried about inflation, reluctant to cut) → USD bullish. Dovish minutes (members see risks to growth, open to cutting) → USD bearish. The language used matters enormously.",
+            tip: "Markets often 'buy the rumor' (react at the meeting) then have a muted reaction to Minutes unless there's a surprise. Look for dissents and specific rate-path language.",
+          },
+          {
+            abbr: "Durable Goods", full: "Durable Goods Orders", category: "Growth",
+            release: "Monthly — ~4th week, 8:30 AM ET",
+            impact: "bullish",
+            what: "New orders placed with US manufacturers for goods expected to last 3+ years (aircraft, machinery, vehicles, electronics). Measures business investment in the economy.",
+            why: "Rising orders = companies investing in expansion = economic confidence = USD positive. Weak orders = businesses pulling back = slowdown fear. Core Durable Goods (ex defense, ex aircraft) is the 'clean' reading.",
+            tip: "Headline can be wildly distorted by a single aircraft order (Boeing). Always check 'core' ex-transportation figure for the real signal.",
+          },
+          {
+            abbr: "Trade Balance", full: "Trade Balance", category: "Growth",
+            release: "Monthly — ~5 weeks after month end, 8:30 AM ET",
+            impact: "bullish",
+            what: "Difference between US exports and imports. A deficit means the US buys more from the world than it sells. The US runs a persistent trade deficit — the number fluctuates around -$60B to -$100B monthly.",
+            why: "A narrowing deficit (less negative) = fewer USD outflows to pay for imports = mild USD positive. A widening deficit can signal strong domestic demand (complex). Generally a second-tier market mover.",
+            tip: "The goods trade balance is released earlier as an advance estimate and is the more market-moving version.",
+          },
+          {
+            abbr: "Consumer Confidence", full: "Consumer Confidence Index (CB)", category: "Sentiment / PMI",
+            release: "Monthly — last Tuesday, 10:00 AM ET",
+            impact: "bullish",
+            what: "Survey by The Conference Board asking ~3,000 US households how they feel about current business conditions and their 6-month outlook. Scale indexed to 1985 = 100.",
+            why: "Confident consumers spend more → retail sales and GDP grow → USD positive. Low confidence → spending pullback → recession fears → USD negative. Especially useful as a leading indicator of consumer spending.",
+            tip: "The 'Jobs Hard to Get' sub-index within the survey is a shadow unemployment signal the Fed follows.",
+          },
+          {
+            abbr: "Michigan Sentiment", full: "University of Michigan Consumer Sentiment", category: "Sentiment / PMI",
+            release: "Monthly — Preliminary (2nd Friday), Final (4th Friday), 10:00 AM ET",
+            impact: "bullish",
+            what: "Survey of ~500 US consumers rating personal finances, business conditions, and buying conditions. Also includes 1-year and 5-year inflation expectations.",
+            why: "The 5-year inflation expectations component directly influences Fed thinking — if consumers expect high long-term inflation, the Fed must respond aggressively → USD can spike. Headline sentiment reading affects risk appetite broadly.",
+            tip: "The inflation expectations sub-reading can be more market-moving than the headline sentiment number.",
+          },
+          {
+            abbr: "Building Permits", full: "Building Permits / Housing Starts", category: "Housing",
+            release: "Monthly — ~3rd week, 8:30 AM ET",
+            impact: "bullish",
+            what: "Building Permits = government approvals for new construction. Housing Starts = actual ground broken on new homes. Released together. Both measure health of the housing sector.",
+            why: "Strong housing = strong economy (construction jobs, materials demand, furnishings). Also signals consumer confidence (people buy homes when feeling secure). Weak housing can lead GDP down by several months.",
+            tip: "Housing is very sensitive to mortgage rates (and therefore Fed rates). A housing slowdown can be an early warning of Fed overtightening.",
+          },
+        ]
+
+        const filtered = GLOSSARY.filter(g =>
+          !glossarySearch ||
+          g.abbr.toLowerCase().includes(glossarySearch.toLowerCase()) ||
+          g.full.toLowerCase().includes(glossarySearch.toLowerCase()) ||
+          g.category.toLowerCase().includes(glossarySearch.toLowerCase())
+        )
+
+        const categoryColors = {
+          "Employment":      "bg-blue-500/10 border-blue-500/30 text-blue-400",
+          "Inflation":       "bg-red-500/10 border-red-500/30 text-red-400",
+          "Growth":          "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+          "Sentiment / PMI": "bg-purple-500/10 border-purple-500/30 text-purple-400",
+          "Fed / Policy":    "bg-amber-500/10 border-amber-500/30 text-amber-400",
+          "Housing":         "bg-cyan-500/10 border-cyan-500/30 text-cyan-400",
+        }
+
+        const impactLabel = { bullish: "📈 Bullish if Higher", bearish: "📉 Bearish if Higher", watch: "👀 Watch Tone" }
+
+        return (
+          <div className="card overflow-hidden">
+            <button onClick={() => setGlossaryOpen(o => !o)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-800/30 transition-colors text-left">
+              <div>
+                <h3 className="card-title flex items-center gap-2">📖 Economic Indicator Glossary</h3>
+                <p className="text-xs text-gray-500 mt-0.5">What is NFP, CPI, PPI, PCE, FOMC...? — {GLOSSARY.length} indicators explained</p>
+              </div>
+              <span className="text-gray-500 text-xs flex-none">{glossaryOpen ? "▲ hide" : "▼ show"}</span>
+            </button>
+
+            {glossaryOpen && (
+              <div className="border-t border-gray-700/50">
+                {/* Search */}
+                <div className="px-5 py-3 border-b border-gray-700/40">
+                  <input
+                    type="text"
+                    placeholder="Search indicators… (e.g. NFP, inflation, employment)"
+                    value={glossarySearch}
+                    onChange={e => setGlossarySearch(e.target.value)}
+                    className="input w-full text-sm"
+                  />
+                </div>
+
+                {/* Cards grid */}
+                <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {filtered.map(g => (
+                    <div key={g.abbr} className="rounded-xl border border-gray-700/50 bg-gray-900/40 overflow-hidden">
+                      {/* Card header */}
+                      <div className="px-4 py-3 border-b border-gray-700/40 flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-black text-gray-100 mono">{g.abbr}</span>
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${categoryColors[g.category] || "bg-gray-700/40 border-gray-600/30 text-gray-400"}`}>
+                            {g.category}
+                          </span>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          g.impact === "bullish" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" :
+                          g.impact === "bearish" ? "bg-red-500/10 border-red-500/30 text-red-400" :
+                          "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                        }`}>{impactLabel[g.impact]}</span>
+                      </div>
+
+                      <div className="px-4 py-3 space-y-2.5">
+                        {/* Full name + release schedule */}
+                        <div>
+                          <p className="text-xs font-semibold text-gray-200">{g.full}</p>
+                          <p className="text-[11px] text-gray-500 mt-0.5">🗓 {g.release}</p>
+                        </div>
+
+                        {/* What it is */}
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">What it measures</p>
+                          <p className="text-xs text-gray-400 leading-relaxed">{g.what}</p>
+                        </div>
+
+                        {/* Why traders care */}
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Why it moves USD</p>
+                          <p className="text-xs text-gray-300 leading-relaxed">{g.why}</p>
+                        </div>
+
+                        {/* Pro tip */}
+                        <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 px-3 py-2">
+                          <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-0.5">💡 Trader tip</p>
+                          <p className="text-[11px] text-gray-400 leading-relaxed">{g.tip}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {filtered.length === 0 && (
+                    <p className="text-gray-500 text-sm col-span-2 text-center py-8">No indicators match "{glossarySearch}"</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Volatility section */}
       <div className="card p-5 space-y-5">
