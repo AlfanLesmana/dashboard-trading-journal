@@ -133,7 +133,9 @@ export default function EconCalendar() {
   const [loadingEv, setLoadingEv]   = useState(true)
   const [loadingVol, setLoadingVol] = useState(true)
   const [impactFilter, setImpactFilter] = useState(["High", "Medium"])
-  const [volSymbol, setVolSymbol]   = useState("NQ=F")
+  const [weekFilter, setWeekFilter]     = useState("all")  // "this" | "next" | "all"
+  const [volSymbol, setVolSymbol]       = useState("NQ=F")
+  const [volInfoOpen, setVolInfoOpen]   = useState(false)
   const now = useNow()
 
   const applyFilter = (all) => all.filter(e =>
@@ -217,7 +219,22 @@ export default function EconCalendar() {
     return acc
   }, {})
 
-  const sortedDays = Object.keys(grouped).sort()
+  // Week boundaries (Mon–Sun)
+  const getWeekBounds = (offsetWeeks = 0) => {
+    const d = new Date()
+    const day = d.getDay() || 7  // Mon=1 … Sun=7
+    const mon = new Date(d); mon.setDate(d.getDate() - day + 1 + offsetWeeks * 7); mon.setHours(0,0,0,0)
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6); sun.setHours(23,59,59,999)
+    return { from: mon.toISOString().slice(0, 10), to: sun.toISOString().slice(0, 10) }
+  }
+  const thisWeek = getWeekBounds(0)
+  const nextWeek = getWeekBounds(1)
+
+  const sortedDays = Object.keys(grouped).sort().filter(day => {
+    if (weekFilter === "this") return day >= thisWeek.from && day <= thisWeek.to
+    if (weekFilter === "next") return day >= nextWeek.from && day <= nextWeek.to
+    return true
+  })
 
   // Next upcoming high-impact event (from unfiltered — check all High events)
   const nextEvent = events.find(e => e.impact === "High" && e.timestamp && e.timestamp * 1000 > now)
@@ -232,6 +249,25 @@ export default function EconCalendar() {
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
           <CacheBadge savedAt={evSavedAt} loading={loadingEv} onRefresh={fetchEvents} />
+
+          {/* Week filter */}
+          <div className="flex items-center rounded-lg border border-gray-700 overflow-hidden text-xs font-semibold">
+            {[
+              { key: "this", label: "This Week" },
+              { key: "next", label: "Next Week" },
+              { key: "all",  label: "All" },
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => setWeekFilter(key)}
+                className={`px-3 py-1.5 transition-colors ${
+                  weekFilter === key
+                    ? "bg-brand text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-gray-200 hover:bg-gray-750"
+                }`}>
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Impact filter toggles */}
           {["High", "Medium", "Low"].map(level => {
             const m = IMPACT_META[level]
@@ -293,10 +329,18 @@ export default function EconCalendar() {
           <div className="flex items-center justify-center h-48">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-amber-500 border-t-transparent" />
           </div>
-        ) : events.length === 0 ? (
+        ) : sortedDays.length === 0 ? (
           <div className="text-center py-16 space-y-2">
-            <p className="text-gray-400 font-medium">{rateLimited ? "⏳ Waiting for Forex Factory rate limit to clear" : "No events found"}</p>
-            <p className="text-gray-600 text-xs">{rateLimited ? "FF allows 2 requests per 5 min. Data will auto-refresh once the block lifts." : "Try adjusting the impact filters above."}</p>
+            <p className="text-gray-400 font-medium">
+              {rateLimited ? "⏳ Waiting for Forex Factory rate limit to clear"
+                : sortedDays.length === 0 && events.length > 0 ? "No events in this period"
+                : "No events found"}
+            </p>
+            <p className="text-gray-600 text-xs">
+              {rateLimited ? "FF allows 2 requests per 5 min. Data will auto-refresh once the block lifts."
+                : sortedDays.length === 0 && events.length > 0 ? "Try switching to All or a different week."
+                : "Try adjusting the impact filters above."}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-gray-700/40">
@@ -389,6 +433,64 @@ export default function EconCalendar() {
           </div>
         </div>
 
+        {/* What is this? — collapsible explainer */}
+        <div className="rounded-xl border border-gray-700/50 bg-gray-900/40 overflow-hidden">
+          <button
+            onClick={() => setVolInfoOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-800/40 transition-colors">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 text-sm">💡</span>
+              <span className="text-sm font-semibold text-gray-300">What is this? How do I read it?</span>
+            </div>
+            <span className="text-gray-500 text-xs">{volInfoOpen ? "▲ hide" : "▼ show"}</span>
+          </button>
+          {volInfoOpen && (
+            <div className="px-4 pb-4 pt-1 space-y-4 text-sm text-gray-400 border-t border-gray-700/50">
+
+              <div className="space-y-1.5">
+                <p className="text-gray-200 font-semibold">📌 The core idea</p>
+                <p>Markets tend to move more on days when important economic news is released — things like CPI, NFP, or Fed decisions. This section measures <span className="text-gray-200 font-medium">how much bigger</span> those moves are compared to an average quiet day, using 2 years of historical price data.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-gray-200 font-semibold">📐 What is ATR?</p>
+                <p><span className="text-amber-400 font-semibold">ATR (Average True Range)</span> = the daily high minus the daily low, in points. It's the simplest measure of how much a market moved in a single day, ignoring direction. A day where NQ went from 18,800 to 19,200 has an ATR of 400 points.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-gray-200 font-semibold">🔢 The three headline numbers</p>
+                <div className="space-y-1 pl-2 border-l-2 border-gray-700">
+                  <p><span className="text-gray-200 font-medium">Avg Normal Day ATR</span> — the baseline. Average daily range on days with no major events.</p>
+                  <p><span className="text-amber-400 font-medium">Avg Event Day ATR</span> — average daily range on days when at least one high-impact news event occurred.</p>
+                  <p><span className="text-red-400 font-medium">Event Day Premium</span> — how much larger event days are versus normal days, as a percentage. e.g. +35% means event days are 35% wider on average.</p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-gray-200 font-semibold">📊 The bar chart</p>
+                <p>Each bar is one type of event (e.g. "CPI m/m" or "NFP"). Bar length = average ATR on days that event occurred. The <span className="text-gray-300">dashed line</span> is the normal-day baseline — anything past it means that event historically makes the market move more than usual.</p>
+                <div className="flex items-center gap-4 mt-2 text-xs">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-400 inline-block" /> &gt;30% above normal — highly volatile</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" /> above normal</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-gray-500 inline-block" /> at or below normal</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-gray-200 font-semibold">🎯 How to use it as a trader</p>
+                <ul className="space-y-1 pl-3 list-disc list-outside marker:text-gray-600">
+                  <li>Before a news event, check this table. If CPI historically adds +40% range, <span className="text-gray-200">expect a bigger-than-normal day</span> — widen your stops or reduce size.</li>
+                  <li>If the premium is low (event is near the dashed line), the news usually doesn't change much — you can trade it closer to your normal plan.</li>
+                  <li>Red bars = highest-risk events. These are the ones most likely to stop you out or trigger large gaps.</li>
+                  <li><span className="text-gray-200">This is historical context, not a prediction</span>. Any single day can be an outlier — use it to size risk, not to bet on direction.</li>
+                </ul>
+              </div>
+
+              <p className="text-xs text-gray-600 italic">Data source: Yahoo Finance (yfinance), last 2 years of daily OHLC. Cached 24 hours.</p>
+            </div>
+          )}
+        </div>
+
         {loadingVol ? (
           <div className="flex items-center justify-center h-48">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-amber-500 border-t-transparent" />
@@ -424,7 +526,7 @@ export default function EconCalendar() {
               <>
                 <div>
                   <p className="label mb-1">ATR by Event Type (high impact, recent dates)</p>
-                <p className="text-xs text-gray-500 mb-3">NQ daily range on each event day this week</p>
+                <p className="text-xs text-gray-500 mb-3">Daily range on each high-impact event day — sorted by average ATR (highest first)</p>
                   <ResponsiveContainer width="100%" height={Math.max(220, vol.per_type.length * 28)}>
                     <BarChart
                       data={vol.per_type}
