@@ -6,9 +6,11 @@ from functools import lru_cache
 import time
 
 FF_URLS = [
-    "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
-    "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
+    "https://nfs.faireconomy.media/ff_calendar_thisweek.json",   # includes past days of current week
+    "https://nfs.faireconomy.media/ff_calendar_nextweek.json",   # next 7 days
 ]
+# Note: ff_calendar_lastweek.json does not exist (404). Past events from this week
+# still appear in thisweek JSON with actual values filled in.
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -45,19 +47,15 @@ def fetch_events(impact_filter=None):
         if impact_filter and impact not in [i.lower() for i in impact_filter]:
             continue
 
-        # Parse datetime — FF format: "01-13-2025T14:30:00-0500"
+        # Parse datetime — FF format: "2026-05-10T21:30:00-04:00" (ISO 8601)
         raw_dt = e.get("date", "")
-        try:
-            # Try with timezone offset
-            dt = datetime.strptime(raw_dt, "%m-%d-%YT%H:%M:%S%z")
-            dt_utc = dt.astimezone(timezone.utc)
-        except Exception:
+        dt_utc = None
+        if raw_dt:
             try:
-                dt = datetime.strptime(raw_dt[:19], "%m-%d-%YT%H:%M:%S")
-                # FF times are US Eastern — approximate as UTC-5
-                dt_utc = dt.replace(tzinfo=timezone.utc) + timedelta(hours=5)
+                dt = datetime.fromisoformat(raw_dt)
+                dt_utc = dt.astimezone(timezone.utc)
             except Exception:
-                dt_utc = None
+                pass
 
         result.append({
             "id": e.get("id", ""),

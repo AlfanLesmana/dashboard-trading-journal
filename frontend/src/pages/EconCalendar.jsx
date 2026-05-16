@@ -88,9 +88,23 @@ function fmtCountdown(tsMs, nowMs) {
 }
 
 function fmtDateLocal(isoUtc) {
-  if (!isoUtc) return "—"
+  if (!isoUtc || isoUtc === "TBA") return "—"
   const d = new Date(isoUtc)
+  if (isNaN(d)) return "—"
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+}
+
+function fmtDayHeader(dateStr) {
+  if (!dateStr || dateStr === "TBA") return "No Date"
+  const d = new Date(dateStr + "T12:00:00Z")
+  if (isNaN(d)) return dateStr
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const yesterdayStr = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+  if (dateStr === todayStr)     return "Today — " + d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+  if (dateStr === yesterdayStr) return "Yesterday — " + d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+  if (dateStr === tomorrowStr)  return "Tomorrow — " + d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", year: "numeric" })
 }
 
 function fmtTimeLocal(isoUtc) {
@@ -255,10 +269,16 @@ export default function EconCalendar() {
             {sortedDays.map(day => (
               <div key={day}>
                 {/* Day header */}
-                <div className="px-5 py-2 bg-gray-900/40">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    {fmtDateLocal(day + "T12:00:00Z")}
+                <div className="px-5 py-2.5 bg-gray-900/40 flex items-center gap-2">
+                  <p className="text-xs font-semibold text-gray-300 tracking-wide">
+                    {fmtDayHeader(day)}
                   </p>
+                  {day < new Date().toISOString().slice(0, 10) && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-500 font-medium">Past</span>
+                  )}
+                  {day === new Date().toISOString().slice(0, 10) && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">Today</span>
+                  )}
                 </div>
                 {/* Events for this day */}
                 {grouped[day].map((e, i) => {
@@ -267,7 +287,7 @@ export default function EconCalendar() {
                   const isPast = cd?.past
                   return (
                     <div key={e.id || i}
-                      className={`px-5 py-3.5 flex items-center gap-4 hover:bg-gray-800/30 transition-colors ${isPast ? "opacity-50" : ""}`}>
+                      className={`px-5 py-3.5 flex items-center gap-4 hover:bg-gray-800/30 transition-colors ${isPast ? "opacity-40" : ""}`}>
                       {/* Impact dot */}
                       <span className={`w-2 h-2 rounded-full flex-none ${m.dot}`} />
 
