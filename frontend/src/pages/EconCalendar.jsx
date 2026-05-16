@@ -418,11 +418,26 @@ export default function EconCalendar() {
   // Fall back to current events state if cache is somehow empty
   const eventPool = allCachedEvents.length > 0 ? allCachedEvents : events
   const usdVerdicts = eventPool
-    .filter(e => e.country === "USD" && e.impact === "High" && e.timestamp && e.timestamp * 1000 > now - 3600000)
-    .map(e => ({ ...e, verdict: getVerdict(e) }))
-    .filter(e => e.verdict !== null)
+    .filter(e => e.country === "USD" && e.impact === "High" && e.timestamp)
+    .map(e => {
+      const isPast = e.timestamp * 1000 < now
+      const verdict = getVerdict(e)
+      if (!verdict) return null
+      // For past events with actual data: compute beat/miss vs forecast
+      let actualResult = null
+      if (isPast && e.actual && e.forecast && verdict.bullishIfHigher !== null) {
+        const act = parseVal(e.actual)
+        const fc  = parseVal(e.forecast)
+        if (!isNaN(act) && !isNaN(fc)) {
+          const beat = verdict.rule.bullishIfHigher ? act > fc : act < fc
+          const miss = verdict.rule.bullishIfHigher ? act < fc : act > fc
+          actualResult = beat ? "beat" : miss ? "miss" : "inline"
+        }
+      }
+      return { ...e, verdict, isPast, actualResult }
+    })
+    .filter(Boolean)
     .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
-    .slice(0, 8)
 
   return (
     <div className="space-y-4 pb-8">
@@ -516,29 +531,48 @@ export default function EconCalendar() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {usdVerdicts.map((e, i) => {
+          {/* Past / Upcoming divider labels */}
+          {(() => {
+            const past     = usdVerdicts.filter(e => e.isPast)
+            const upcoming = usdVerdicts.filter(e => !e.isPast)
+            const ActualBadge = ({ result }) => {
+              if (!result) return null
+              const map = {
+                beat:   { label: "Beat ✓",  cls: "bg-emerald-500/20 border-emerald-500/40 text-emerald-400" },
+                miss:   { label: "Miss ✗",  cls: "bg-red-500/20 border-red-500/40 text-red-400" },
+                inline: { label: "In-line",  cls: "bg-gray-700/40 border-gray-600/30 text-gray-400" },
+              }
+              const { label, cls } = map[result]
+              return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
+            }
+            const Card = ({ e }) => {
               const v = e.verdict
-              const diffStr = (!isNaN(v.fc) && !isNaN(v.pr))
-                ? `Fcst ${e.forecast} vs Prev ${e.previous}`
-                : e.forecast ? `Fcst ${e.forecast}` : ""
+              const diffStr = e.isPast && e.actual
+                ? `Actual ${e.actual} · Fcst ${e.forecast || "—"} · Prev ${e.previous || "—"}`
+                : (!isNaN(v.fc) && !isNaN(v.pr))
+                  ? `Fcst ${e.forecast} vs Prev ${e.previous}`
+                  : e.forecast ? `Fcst ${e.forecast}` : ""
               return (
-                <div key={e.id || i} className={`rounded-xl border p-4 space-y-2.5 ${v.bg}`}>
-                  {/* Header row */}
+                <div key={e.id} className={`rounded-xl border p-4 space-y-2.5 ${e.isPast ? "opacity-60" : ""} ${v.bg}`}>
+                  {/* Header */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-base flex-none">🇺🇸</span>
                       <p className="text-sm font-bold text-gray-100 truncate">{e.title}</p>
+                      {e.isPast && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-700/60 text-gray-500 font-medium flex-none">Past</span>}
                     </div>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border whitespace-nowrap flex items-center gap-1 ${v.bg} ${v.color}`}>
-                      <span>{v.icon}</span><span>{v.label}</span>
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-none">
+                      {e.actualResult && <ActualBadge result={e.actualResult} />}
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full border whitespace-nowrap flex items-center gap-1 ${v.bg} ${v.color}`}>
+                        <span>{v.icon}</span><span>{v.label}</span>
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Date + forecast numbers */}
-                  <div className="flex items-center justify-between text-xs text-gray-400">
+                  {/* Date + numbers row */}
+                  <div className="flex items-center justify-between text-xs text-gray-400 gap-2 flex-wrap">
                     <span className="mono">{fmtDateLocal(e.datetime_utc)} · {fmtTimeLocal(e.datetime_utc)}</span>
-                    {diffStr && <span className={`font-semibold ${v.color}`}>{diffStr}</span>}
+                    {diffStr && <span className={`font-semibold ${e.isPast && e.actual ? (e.actualResult === "beat" ? "text-emerald-400" : e.actualResult === "miss" ? "text-red-400" : "text-gray-400") : v.color}`}>{diffStr}</span>}
                   </div>
 
                   {/* Reason */}
@@ -550,14 +584,35 @@ export default function EconCalendar() {
                   )}
                 </div>
               )
-            })}
-          </div>
+            }
+            return (
+              <div className="space-y-4">
+                {upcoming.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">📅 Upcoming</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {upcoming.map((e, i) => <Card key={e.id || i} e={e} />)}
+                    </div>
+                  </div>
+                )}
+                {past.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">🕐 Released This Week</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {[...past].reverse().map((e, i) => <Card key={e.id || i} e={e} />)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Legend */}
-          <div className="flex items-center gap-4 pt-1 flex-wrap text-xs text-gray-500">
-            <span className="flex items-center gap-1"><span className="text-emerald-400 font-bold">📈 Bullish USD</span> — forecast stronger than previous, positive for dollar</span>
-            <span className="flex items-center gap-1"><span className="text-red-400 font-bold">📉 Bearish USD</span> — forecast weaker, pressure on dollar</span>
-            <span className="flex items-center gap-1"><span className="text-blue-400 font-bold">👀 Watch Tone</span> — direction depends on speech/statement language</span>
+          <div className="flex items-center gap-4 pt-1 flex-wrap text-xs text-gray-500 border-t border-gray-700/40">
+            <span className="pt-2 flex items-center gap-1"><span className="text-emerald-400 font-bold">📈 Bullish USD</span> — forecast stronger than previous</span>
+            <span className="pt-2 flex items-center gap-1"><span className="text-red-400 font-bold">📉 Bearish USD</span> — forecast weaker</span>
+            <span className="pt-2 flex items-center gap-1"><span className="text-blue-400 font-bold">👀 Watch Tone</span> — Fed speech, direction = language</span>
+            <span className="pt-2 flex items-center gap-1"><span className="text-emerald-400 font-bold">Beat ✓</span> / <span className="text-red-400 font-bold ml-1">Miss ✗</span> — actual vs forecast after release</span>
           </div>
         </div>
       )}
