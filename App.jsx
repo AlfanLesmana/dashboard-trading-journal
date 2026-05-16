@@ -8,7 +8,6 @@ import Equity from "./pages/Equity"
 import Trades from "./pages/Trades"
 import Insights from "./pages/Insights"
 import HealthMetrics from "./pages/HealthMetrics"
-import EconCalendar from "./pages/EconCalendar"
 import Upload from "./pages/Upload"
 
 function Layout({ onLogout }) {
@@ -24,7 +23,6 @@ function Layout({ onLogout }) {
             <Route path="/trades" element={<Trades />} />
             <Route path="/insights" element={<Insights />} />
             <Route path="/health" element={<HealthMetrics />} />
-            <Route path="/econ" element={<EconCalendar />} />
             <Route path="/upload" element={<Upload />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

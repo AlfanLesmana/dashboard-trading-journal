@@ -3,17 +3,14 @@ from pathlib import Path
 from fastapi import FastAPI, UploadFile, File, Query, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from pydantic import BaseModel
-from typing import Optional
 import secrets, hmac
 
 from modules.database import (
     init_db, get_trades, insert_trades, save_import_record,
     file_hash_exists, get_import_history, get_distinct,
-    delete_import, delete_all_data, update_trade_fields
+    delete_import, delete_all_data
 )
 from modules.metrics import compute_metrics, equity_curve, monthly_pnl, strategy_stats, symbol_stats
-from modules.econ import fetch_events, event_volatility
 from modules.parser import parse_excel, file_hash, save_upload
 
 app = FastAPI(title="Trading Dashboard API")
@@ -220,56 +217,6 @@ def api_insights(date_from=None, date_to=None, symbol=None, direction=None, _=De
                     "win": bool(r["net_pnl"] > 0),
                 })
 
-    # ── Risk Metrics ──
-    wins_df   = df[df["net_pnl"] > 0]
-    losses_df = df[df["net_pnl"] <= 0]
-    avg_win_r  = float(wins_df["net_pnl"].mean())   if not wins_df.empty   else 0.0
-    avg_loss_r = float(losses_df["net_pnl"].mean()) if not losses_df.empty else 0.0
-    win_rate_r = len(wins_df) / len(df) if len(df) else 0
-    loss_rate_r = 1 - win_rate_r
-    gross_profit_r = float(wins_df["net_pnl"].sum())
-    gross_loss_r   = float(abs(losses_df["net_pnl"].sum()))
-    profit_factor_r = round(gross_profit_r / gross_loss_r, 2) if gross_loss_r else None
-    expectancy_r    = round((win_rate_r * avg_win_r) + (loss_rate_r * avg_loss_r), 2)
-    rr_ratio        = round(avg_win_r / abs(avg_loss_r), 2) if avg_loss_r and avg_loss_r != 0 else None
-
-    # Max drawdown
-    eq_r      = df.sort_values("trade_date")["net_pnl"].cumsum()
-    roll_max_r = eq_r.cummax()
-    dd_r       = eq_r - roll_max_r
-    max_dd_dollar_r = float(dd_r.min())
-    peak_r = float(roll_max_r.max())
-    max_dd_pct_r = round((max_dd_dollar_r / peak_r) * 100, 2) if peak_r > 0 else 0.0
-
-    # Recovery factor = net PnL / abs(max drawdown $)
-    net_total_r = float(df["net_pnl"].sum())
-    recovery_factor = round(net_total_r / abs(max_dd_dollar_r), 2) if max_dd_dollar_r and max_dd_dollar_r != 0 else None
-
-    # Sharpe ratio (daily, simplified): mean daily PnL / std daily PnL * sqrt(252)
-    daily_pnl = df.groupby(df["trade_date"].dt.date)["net_pnl"].sum()
-    sharpe = None
-    if len(daily_pnl) > 1:
-        mu  = float(daily_pnl.mean())
-        std = float(daily_pnl.std())
-        sharpe = round(mu / std * (252 ** 0.5), 2) if std > 0 else None
-
-    risk_metrics = {
-        "avg_win":        round(avg_win_r, 2),
-        "avg_loss":       round(avg_loss_r, 2),
-        "avg_rr":         rr_ratio,
-        "win_rate":       round(win_rate_r * 100, 2),
-        "profit_factor":  profit_factor_r,
-        "expectancy":     expectancy_r,
-        "max_drawdown_pct":    max_dd_pct_r,
-        "max_drawdown_dollar": round(max_dd_dollar_r, 2),
-        "recovery_factor":    recovery_factor,
-        "sharpe_ratio":       sharpe,
-        "max_consec_wins":    max_win,
-        "max_consec_losses":  max_loss,
-        "gross_profit":  round(gross_profit_r, 2),
-        "gross_loss":    round(gross_loss_r, 2),
-    }
-
     return {
         "period": {"first_trade": first, "last_trade": last, "active_days": active_days, "avg_trades_per_day": avg_per_day},
         "by_day": by_day,
@@ -279,7 +226,6 @@ def api_insights(date_from=None, date_to=None, symbol=None, direction=None, _=De
         "duration": duration,
         "duration_history": duration_history,
         "by_time_slot": by_time_slot,
-        "risk_metrics": risk_metrics,
     }
 
 @app.get("/api/symbol-stats")
@@ -356,42 +302,6 @@ async def api_upload_confirm(file: UploadFile = File(...), _=Depends(verify)):
                      {"i": inserted, "r": rejected, "id": import_id})
         conn.commit()
     return {"imported": inserted, "rejected": rejected}
-
-class TradeUpdate(BaseModel):
-    notes: Optional[str] = None
-    setup: Optional[str] = None
-
-@app.patch("/api/trades/{trade_id}")
-def api_update_trade(trade_id: int, body: TradeUpdate, _=Depends(verify)):
-    update_trade_fields(trade_id, body.model_dump(exclude_none=True))
-    return {"ok": True}
-
-@app.get("/api/calendar")
-def api_calendar(date_from=None, date_to=None, _=Depends(verify)):
-    import pandas as pd
-    df = get_trades(build_filters(date_from, date_to))
-    if df.empty: return []
-    df["net_pnl"] = pd.to_numeric(df["net_pnl"], errors="coerce").fillna(0)
-    df["trade_date"] = pd.to_datetime(df["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
-    df = df.dropna(subset=["trade_date"])
-    daily = df.groupby("trade_date").agg(
-        net_pnl=("net_pnl", "sum"),
-        trades=("net_pnl", "count"),
-        wins=("net_pnl", lambda x: int((x > 0).sum())),
-    ).reset_index()
-    daily["net_pnl"] = daily["net_pnl"].round(2)
-    daily["trades"] = daily["trades"].astype(int)
-    return daily.to_dict("records")
-
-@app.get("/api/econ/events")
-def api_econ_events(impact: str = None, _=Depends(verify)):
-    # impact = "High,Medium,Low" comma-separated optional filter
-    impact_filter = [i.strip() for i in impact.split(",")] if impact else None
-    return fetch_events(impact_filter=impact_filter)
-
-@app.get("/api/econ/volatility")
-def api_econ_volatility(symbol: str = "NQ=F", _=Depends(verify)):
-    return event_volatility(symbol=symbol)
 
 @app.get("/health")
 def health(): return {"status": "ok"}
