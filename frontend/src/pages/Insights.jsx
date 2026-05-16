@@ -129,17 +129,22 @@ function PnLCalendar() {
 
             return (
               <div key={key} title={d ? `${key}: ${pnl >= 0 ? "+" : ""}$${Math.abs(pnl).toFixed(2)} (${d.trades} trade${d.trades !== 1 ? "s" : ""})` : ""}
-                className={`relative rounded-lg border p-1.5 flex flex-col items-center justify-center aspect-square transition-all ${bg} ${isToday ? "ring-1 ring-amber-500/60" : ""}`}>
-                <span className={`text-[11px] font-semibold leading-none ${isToday ? "text-amber-400" : "text-gray-400"}`}>{day}</span>
-                {pnl !== null && (
-                  <span className={`text-[9px] font-bold mono leading-tight mt-0.5 ${textColor}`}>
-                    {Math.abs(pnl) >= 1000 ? (pnl >= 0 ? "+" : "-") + "$" + (Math.abs(pnl)/1000).toFixed(1) + "k"
-                      : (pnl >= 0 ? "+" : "-") + "$" + Math.abs(pnl).toFixed(0)}
-                  </span>
-                )}
-                {d?.trades > 0 && (
-                  <span className="absolute bottom-0.5 right-1 text-[7px] text-gray-500">{d.trades}t</span>
-                )}
+                className={`relative rounded-lg border p-2 flex flex-col h-[76px] transition-all ${bg} ${isToday ? "ring-1 ring-amber-500/60" : ""}`}>
+                {/* Day number — top left */}
+                <span className={`text-xs font-bold leading-none ${isToday ? "text-amber-400" : "text-gray-400"}`}>{day}</span>
+                {/* PnL + trades — centered stack */}
+                {pnl !== null ? (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-0.5">
+                    <span className={`text-sm font-black mono leading-tight ${textColor}`}>
+                      {Math.abs(pnl) >= 1000
+                        ? (pnl >= 0 ? "+" : "-") + "$" + (Math.abs(pnl)/1000).toFixed(1) + "k"
+                        : (pnl >= 0 ? "+" : "-") + "$" + Math.abs(pnl).toFixed(0)}
+                    </span>
+                    {d?.trades > 0 && (
+                      <span className="text-xs text-gray-400 leading-tight">{d.trades} trade{d.trades !== 1 ? "s" : ""}</span>
+                    )}
+                  </div>
+                ) : <div className="flex-1" />}
               </div>
             )
           })}
