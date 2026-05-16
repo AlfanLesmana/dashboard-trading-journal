@@ -140,27 +140,13 @@ export default function EconCalendar() {
     impactFilter.map(i => i.toLowerCase()).includes((e.impact || "").toLowerCase())
   )
 
-  const loadEvents = (force = false) => {
-    const cacheKey = LS_EVENTS_KEY
-    // Always use cache on page load (ignore TTL) — only bypass on manual refresh
-    if (!force) {
-      try {
-        const raw = localStorage.getItem(cacheKey)
-        if (raw) {
-          const { data, savedAt } = JSON.parse(raw)
-          setEvents(applyFilter(data || []))
-          setEvSavedAt(savedAt)
-          setLoadingEv(false)
-          return
-        }
-      } catch {}
-    }
+  const fetchEvents = () => {
     setLoadingEv(true)
     api.econEvents()
       .then(resp => {
         const all = resp?.events || []
-        if (!resp?.rate_limited && all.length > 0) lsSet(cacheKey, all)
-        setEvSavedAt(Date.now())
+        if (!resp?.rate_limited && all.length > 0) lsSet(LS_EVENTS_KEY, all)
+        setEvSavedAt(all.length > 0 ? Date.now() : evSavedAt)
         setRateLimited(resp?.rate_limited || false)
         setEvents(applyFilter(all))
       })
@@ -176,10 +162,12 @@ export default function EconCalendar() {
         const raw = localStorage.getItem(cacheKey)
         if (raw) {
           const { data, savedAt } = JSON.parse(raw)
-          setVol(data)
-          setVolSavedAt(savedAt)
-          setLoadingVol(false)
-          return
+          if (data) {
+            setVol(data)
+            setVolSavedAt(savedAt)
+            setLoadingVol(false)
+            return
+          }
         }
       } catch {}
     }
@@ -195,8 +183,24 @@ export default function EconCalendar() {
       .finally(() => setLoadingVol(false))
   }
 
-  // On mount — always load from cache; filter change re-applies filter to cached data
-  useEffect(() => { loadEvents() }, [impactFilter.join(",")])
+  // On mount and filter change: read from cache (re-apply filter), or auto-fetch if no valid cache
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LS_EVENTS_KEY)
+      if (raw) {
+        const { data, savedAt } = JSON.parse(raw)
+        if (data && data.length > 0) {
+          setEvents(applyFilter(data))
+          setEvSavedAt(savedAt)
+          setLoadingEv(false)
+          return
+        }
+      }
+    } catch {}
+    // No valid cache — fetch from API automatically (first-time load only)
+    fetchEvents()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [impactFilter.join(",")])
   useEffect(() => { loadVol(volSymbol) }, [volSymbol])
 
   const toggleImpact = (level) => {
@@ -227,7 +231,7 @@ export default function EconCalendar() {
           <p className="page-sub">High-impact news events &amp; historical volatility</p>
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <CacheBadge savedAt={evSavedAt} loading={loadingEv} onRefresh={() => loadEvents(true)} />
+          <CacheBadge savedAt={evSavedAt} loading={loadingEv} onRefresh={fetchEvents} />
           {/* Impact filter toggles */}
           {["High", "Medium", "Low"].map(level => {
             const m = IMPACT_META[level]
