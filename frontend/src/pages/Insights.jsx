@@ -173,7 +173,7 @@ export default function Insights() {
   const set = (k, v) => setFilters(f => ({ ...f, [k]: v }))
   const activeCount = Object.values(filters).filter(Boolean).length
 
-  const { by_day, by_direction, streaks, period, duration, by_time_slot, duration_history } = data ?? {}
+  const { by_day, by_direction, streaks, period, duration, by_time_slot, duration_history, risk_metrics } = data ?? {}
 
   // Duration breakdown by direction (computed from per-trade history)
   const longDur = duration_history?.filter(d => d.direction === "Long") ?? []
@@ -271,6 +271,108 @@ export default function Insights() {
           <StatCard label="Avg Trades / Day" value={fmtAbs(period?.avg_trades_per_day, 1)} sub="on active days" />
         </div>
       </div>
+
+      {/* ── RISK METRICS ── */}
+      {risk_metrics && (
+        <div className="card p-5 space-y-5">
+          <div>
+            <h3 className="card-title">Risk Metrics</h3>
+            <p className="text-sm text-gray-400 mt-0.5">Key risk and performance ratios</p>
+          </div>
+
+          {/* Top row — 4 primary ratios */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Avg R:R Ratio</p>
+              <p className="text-xl font-bold mono text-amber-400">
+                {risk_metrics.avg_rr != null ? `1 : ${risk_metrics.avg_rr}` : "—"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">avg win / avg loss</p>
+            </div>
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Profit Factor</p>
+              <p className={`text-xl font-bold mono ${risk_metrics.profit_factor >= 1.5 ? "text-emerald-400" : risk_metrics.profit_factor >= 1 ? "text-amber-400" : "text-red-400"}`}>
+                {risk_metrics.profit_factor != null ? risk_metrics.profit_factor : "—"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">gross profit / gross loss</p>
+            </div>
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Expectancy</p>
+              <p className={`text-xl font-bold mono ${risk_metrics.expectancy >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {risk_metrics.expectancy != null
+                  ? (risk_metrics.expectancy >= 0 ? "+$" : "-$") + Math.abs(risk_metrics.expectancy).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : "—"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">avg $ per trade</p>
+            </div>
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Sharpe Ratio</p>
+              <p className={`text-xl font-bold mono ${risk_metrics.sharpe_ratio >= 1 ? "text-emerald-400" : risk_metrics.sharpe_ratio >= 0 ? "text-amber-400" : "text-red-400"}`}>
+                {risk_metrics.sharpe_ratio != null ? risk_metrics.sharpe_ratio : "—"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">annualised daily</p>
+            </div>
+          </div>
+
+          {/* Second row — drawdown + recovery + streaks */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Max Drawdown</p>
+              <p className="text-xl font-bold mono text-red-400">
+                {risk_metrics.max_drawdown_pct != null ? `${risk_metrics.max_drawdown_pct}%` : "—"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {risk_metrics.max_drawdown_dollar != null
+                  ? `-$${Math.abs(risk_metrics.max_drawdown_dollar).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : ""} of peak equity
+              </p>
+            </div>
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Recovery Factor</p>
+              <p className={`text-xl font-bold mono ${risk_metrics.recovery_factor >= 2 ? "text-emerald-400" : risk_metrics.recovery_factor >= 1 ? "text-amber-400" : "text-red-400"}`}>
+                {risk_metrics.recovery_factor != null ? risk_metrics.recovery_factor : "—"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">net PnL / max DD</p>
+            </div>
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Max Win Streak</p>
+              <p className="text-xl font-bold mono text-emerald-400">{risk_metrics.max_consec_wins ?? "—"}</p>
+              <p className="text-xs text-gray-500 mt-1">consecutive wins</p>
+            </div>
+            <div className="bg-gray-900/60 rounded-xl p-4 border border-gray-700/40">
+              <p className="label mb-1">Max Loss Streak</p>
+              <p className="text-xl font-bold mono text-red-400">{risk_metrics.max_consec_losses ?? "—"}</p>
+              <p className="text-xs text-gray-500 mt-1">consecutive losses</p>
+            </div>
+          </div>
+
+          {/* Avg Win vs Avg Loss visual bar */}
+          {risk_metrics.avg_win != null && risk_metrics.avg_loss != null && (() => {
+            const win  = Math.abs(risk_metrics.avg_win)
+            const loss = Math.abs(risk_metrics.avg_loss)
+            const total = win + loss
+            const winPct  = Math.round((win  / total) * 100)
+            const lossPct = Math.round((loss / total) * 100)
+            return (
+              <div>
+                <p className="label mb-3">Avg Win vs Avg Loss</p>
+                <div className="flex rounded-lg overflow-hidden h-8 text-xs font-bold">
+                  <div className="flex items-center justify-center bg-emerald-500/25 text-emerald-400 transition-all" style={{ width: `${winPct}%` }}>
+                    +${win.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                  <div className="flex items-center justify-center bg-red-500/25 text-red-400 transition-all" style={{ width: `${lossPct}%` }}>
+                    -${loss.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+                <div className="flex justify-between mt-1.5 text-xs text-gray-500">
+                  <span>Avg Win: +${win.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span>Avg Loss: -${loss.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       {/* ── P&L CALENDAR ── */}
       <PnLCalendar />

@@ -219,6 +219,56 @@ def api_insights(date_from=None, date_to=None, symbol=None, direction=None, _=De
                     "win": bool(r["net_pnl"] > 0),
                 })
 
+    # ── Risk Metrics ──
+    wins_df   = df[df["net_pnl"] > 0]
+    losses_df = df[df["net_pnl"] <= 0]
+    avg_win_r  = float(wins_df["net_pnl"].mean())   if not wins_df.empty   else 0.0
+    avg_loss_r = float(losses_df["net_pnl"].mean()) if not losses_df.empty else 0.0
+    win_rate_r = len(wins_df) / len(df) if len(df) else 0
+    loss_rate_r = 1 - win_rate_r
+    gross_profit_r = float(wins_df["net_pnl"].sum())
+    gross_loss_r   = float(abs(losses_df["net_pnl"].sum()))
+    profit_factor_r = round(gross_profit_r / gross_loss_r, 2) if gross_loss_r else None
+    expectancy_r    = round((win_rate_r * avg_win_r) + (loss_rate_r * avg_loss_r), 2)
+    rr_ratio        = round(avg_win_r / abs(avg_loss_r), 2) if avg_loss_r and avg_loss_r != 0 else None
+
+    # Max drawdown
+    eq_r      = df.sort_values("trade_date")["net_pnl"].cumsum()
+    roll_max_r = eq_r.cummax()
+    dd_r       = eq_r - roll_max_r
+    max_dd_dollar_r = float(dd_r.min())
+    peak_r = float(roll_max_r.max())
+    max_dd_pct_r = round((max_dd_dollar_r / peak_r) * 100, 2) if peak_r > 0 else 0.0
+
+    # Recovery factor = net PnL / abs(max drawdown $)
+    net_total_r = float(df["net_pnl"].sum())
+    recovery_factor = round(net_total_r / abs(max_dd_dollar_r), 2) if max_dd_dollar_r and max_dd_dollar_r != 0 else None
+
+    # Sharpe ratio (daily, simplified): mean daily PnL / std daily PnL * sqrt(252)
+    daily_pnl = df.groupby(df["trade_date"].dt.date)["net_pnl"].sum()
+    sharpe = None
+    if len(daily_pnl) > 1:
+        mu  = float(daily_pnl.mean())
+        std = float(daily_pnl.std())
+        sharpe = round(mu / std * (252 ** 0.5), 2) if std > 0 else None
+
+    risk_metrics = {
+        "avg_win":        round(avg_win_r, 2),
+        "avg_loss":       round(avg_loss_r, 2),
+        "avg_rr":         rr_ratio,
+        "win_rate":       round(win_rate_r * 100, 2),
+        "profit_factor":  profit_factor_r,
+        "expectancy":     expectancy_r,
+        "max_drawdown_pct":    max_dd_pct_r,
+        "max_drawdown_dollar": round(max_dd_dollar_r, 2),
+        "recovery_factor":    recovery_factor,
+        "sharpe_ratio":       sharpe,
+        "max_consec_wins":    max_win,
+        "max_consec_losses":  max_loss,
+        "gross_profit":  round(gross_profit_r, 2),
+        "gross_loss":    round(gross_loss_r, 2),
+    }
+
     return {
         "period": {"first_trade": first, "last_trade": last, "active_days": active_days, "avg_trades_per_day": avg_per_day},
         "by_day": by_day,
@@ -228,6 +278,7 @@ def api_insights(date_from=None, date_to=None, symbol=None, direction=None, _=De
         "duration": duration,
         "duration_history": duration_history,
         "by_time_slot": by_time_slot,
+        "risk_metrics": risk_metrics,
     }
 
 @app.get("/api/symbol-stats")
