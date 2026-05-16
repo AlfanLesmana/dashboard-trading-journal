@@ -21,6 +21,7 @@
 
   /* ── Inputs ── */
   .input  { @apply bg-gray-900/80 border border-gray-600/80 text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500/70 focus:ring-1 focus:ring-amber-500/20 transition-all w-full placeholder-gray-500; }
+  .input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
   .select {
     @apply bg-gray-900/80 border border-gray-600/80 text-gray-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500/70 focus:ring-1 focus:ring-amber-500/20 transition-all w-full;
     appearance: none;
