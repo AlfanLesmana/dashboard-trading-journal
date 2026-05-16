@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState } from "react"
 import { api } from "../api"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, Cell
@@ -15,13 +15,62 @@ const IMPACT_META = {
 const SYMBOLS = ["NQ=F", "ES=F", "YM=F", "RTY=F"]
 const SYMBOL_LABELS = { "NQ=F": "NQ (Nasdaq)", "ES=F": "ES (S&P 500)", "YM=F": "YM (Dow)", "RTY=F": "RTY (Russell)" }
 
-// Live countdown hook
-function useNow() {
+// ── localStorage cache helpers ──
+const LS_EVENTS_KEY = "econ_events_cache"
+const LS_VOL_PREFIX = "econ_vol_cache_"
+const CLIENT_EVENTS_TTL = 4 * 60 * 60 * 1000   // 4 hours — FF limit: 2 req/5 min, weekly data
+const CLIENT_VOL_TTL    = 24 * 60 * 60 * 1000  // 24 hours — yfinance burst-sensitive, OHLC is daily
+
+function lsGet(key, ttlMs) {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const { data, savedAt } = JSON.parse(raw)
+    if (Date.now() - savedAt > ttlMs) return null
+    return { data, savedAt }
+  } catch { return null }
+}
+
+function lsSet(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({ data, savedAt: Date.now() })) } catch {}
+}
+
+function fmtAgo(ms) {
+  const s = Math.floor((Date.now() - ms) / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  return `${Math.floor(m / 60)}h ago`
+}
+
+// ── Cache status badge ──
+function CacheBadge({ savedAt, ttlMs, onRefresh, loading }) {
+  const now = useNow(10000) // refresh badge every 10s
+  if (!savedAt) return null
+  const ageMs = now - savedAt
+  const stale = ageMs > ttlMs * 0.8
+  return (
+    <div className={`flex items-center gap-2 text-xs px-2.5 py-1 rounded-full border ${
+      stale ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+             : "bg-gray-800 border-gray-700/50 text-gray-500"
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${stale ? "bg-amber-400" : "bg-emerald-400"}`} />
+      <span>Cached · {fmtAgo(savedAt)}</span>
+      <button onClick={onRefresh} disabled={loading}
+        className="hover:text-gray-300 disabled:opacity-40 transition-colors ml-0.5">
+        {loading ? "…" : "↻"}
+      </button>
+    </div>
+  )
+}
+
+// Live countdown hook — tick every second
+function useNow(interval = 1000) {
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
+    const id = setInterval(() => setNow(Date.now()), interval)
     return () => clearInterval(id)
-  }, [])
+  }, [interval])
   return now
 }
 
@@ -51,33 +100,73 @@ function fmtTimeLocal(isoUtc) {
 }
 
 export default function EconCalendar() {
-  const [events, setEvents]   = useState([])
-  const [vol, setVol]         = useState(null)
-  const [loadingEv, setLoadingEv] = useState(true)
+  const [events, setEvents]     = useState([])
+  const [evSavedAt, setEvSavedAt] = useState(null)
+  const [vol, setVol]           = useState(null)
+  const [volSavedAt, setVolSavedAt] = useState(null)
+  const [loadingEv, setLoadingEv]   = useState(true)
   const [loadingVol, setLoadingVol] = useState(true)
   const [impactFilter, setImpactFilter] = useState(["High", "Medium"])
-  const [symbol, setSymbol]   = useState("NQ=F")
   const [volSymbol, setVolSymbol] = useState("NQ=F")
   const now = useNow()
 
-  // Fetch events
-  useEffect(() => {
+  const loadEvents = (force = false) => {
+    const cacheKey = LS_EVENTS_KEY
+    if (!force) {
+      const cached = lsGet(cacheKey, CLIENT_EVENTS_TTL)
+      if (cached) {
+        // apply client-side impact filter on cached data
+        const filtered = cached.data.filter(e =>
+          impactFilter.map(i => i.toLowerCase()).includes((e.impact || "").toLowerCase())
+        )
+        setEvents(filtered)
+        setEvSavedAt(cached.savedAt)
+        setLoadingEv(false)
+        return
+      }
+    }
     setLoadingEv(true)
-    api.econEvents(impactFilter.join(","))
-      .then(setEvents)
+    // Fetch all impacts, filter client-side so we can reuse same cache for filter changes
+    api.econEvents()
+      .then(resp => {
+        const all = resp?.events || []
+        lsSet(cacheKey, all)
+        setEvSavedAt(Date.now())
+        const filtered = all.filter(e =>
+          impactFilter.map(i => i.toLowerCase()).includes((e.impact || "").toLowerCase())
+        )
+        setEvents(filtered)
+      })
       .catch(() => setEvents([]))
       .finally(() => setLoadingEv(false))
-  }, [impactFilter.join(",")])
+  }
 
-  // Fetch volatility (debounced on symbol change)
-  useEffect(() => {
+  const loadVol = (sym, force = false) => {
+    const cacheKey = LS_VOL_PREFIX + sym
+    if (!force) {
+      const cached = lsGet(cacheKey, CLIENT_VOL_TTL)
+      if (cached) {
+        setVol(cached.data)
+        setVolSavedAt(cached.savedAt)
+        setLoadingVol(false)
+        return
+      }
+    }
     setLoadingVol(true)
     setVol(null)
-    api.econVolatility(volSymbol)
-      .then(setVol)
+    api.econVolatility(sym)
+      .then(resp => {
+        lsSet(cacheKey, resp)
+        setVol(resp)
+        setVolSavedAt(Date.now())
+      })
       .catch(() => setVol(null))
       .finally(() => setLoadingVol(false))
-  }, [volSymbol])
+  }
+
+  // On mount and filter change — try cache first
+  useEffect(() => { loadEvents() }, [impactFilter.join(",")])
+  useEffect(() => { loadVol(volSymbol) }, [volSymbol])
 
   const toggleImpact = (level) => {
     setImpactFilter(prev =>
@@ -95,7 +184,7 @@ export default function EconCalendar() {
 
   const sortedDays = Object.keys(grouped).sort()
 
-  // Next upcoming high-impact event
+  // Next upcoming high-impact event (from unfiltered — check all High events)
   const nextEvent = events.find(e => e.impact === "High" && e.timestamp && e.timestamp * 1000 > now)
 
   return (
@@ -106,8 +195,10 @@ export default function EconCalendar() {
           <h1 className="page-title">Economic Calendar</h1>
           <p className="page-sub">High-impact news events &amp; historical volatility</p>
         </div>
-        {/* Impact filter toggles */}
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-3 mt-1 flex-wrap">
+          <CacheBadge savedAt={evSavedAt} ttlMs={CLIENT_EVENTS_TTL} loading={loadingEv}
+            onRefresh={() => loadEvents(true)} />
+          {/* Impact filter toggles */}
           {["High", "Medium", "Low"].map(level => {
             const m = IMPACT_META[level]
             const active = impactFilter.includes(level)
@@ -226,12 +317,16 @@ export default function EconCalendar() {
             <h3 className="card-title">Historical Volatility Around News</h3>
             <p className="text-sm text-gray-400 mt-0.5">Daily range (ATR) on high-impact event days vs normal days — last 2 years</p>
           </div>
-          <select
-            className="select text-sm w-auto min-w-[160px]"
-            value={volSymbol}
-            onChange={e => setVolSymbol(e.target.value)}>
-            {SYMBOLS.map(s => <option key={s} value={s}>{SYMBOL_LABELS[s]}</option>)}
-          </select>
+          <div className="flex items-center gap-3 flex-wrap">
+            <CacheBadge savedAt={volSavedAt} ttlMs={CLIENT_VOL_TTL} loading={loadingVol}
+              onRefresh={() => loadVol(volSymbol, true)} />
+            <select
+              className="select text-sm w-auto min-w-[160px]"
+              value={volSymbol}
+              onChange={e => setVolSymbol(e.target.value)}>
+              {SYMBOLS.map(s => <option key={s} value={s}>{SYMBOL_LABELS[s]}</option>)}
+            </select>
+          </div>
         </div>
 
         {loadingVol ? (

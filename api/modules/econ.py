@@ -15,13 +15,14 @@ HEADERS = {
     "Referer": "https://www.forexfactory.com/",
 }
 
-# Cache events for 15 minutes
+# Cache events for 4 hours — FF limit is 2 req/5 min IP-wide, data is weekly
 _events_cache = {"data": None, "ts": 0}
-_CACHE_TTL = 900
+_CACHE_TTL = 4 * 3600  # 4 hours
 
 def fetch_events(impact_filter=None):
     now = time.time()
-    if _events_cache["data"] is not None and now - _events_cache["ts"] < _CACHE_TTL:
+    cache_hit = _events_cache["data"] is not None and now - _events_cache["ts"] < _CACHE_TTL
+    if cache_hit:
         events = _events_cache["data"]
     else:
         events = []
@@ -71,18 +72,25 @@ def fetch_events(impact_filter=None):
         })
 
     result.sort(key=lambda x: x["timestamp"] or 0)
-    return result
+    return {
+        "events": result,
+        "cached_at": int(_events_cache["ts"]),
+        "cache_ttl": _CACHE_TTL,
+        "from_cache": cache_hit,
+    }
 
 
 # Historical volatility per event type using yfinance
-# Cache per symbol for 1 hour
+# Cache for 24 hours — yfinance is burst-sensitive, OHLC data doesn't change intraday
 _vol_cache = {}
-_VOL_TTL = 3600
+_VOL_TTL = 24 * 3600  # 24 hours
 
 def event_volatility(symbol="NQ=F"):
     now = time.time()
-    if symbol in _vol_cache and now - _vol_cache[symbol]["ts"] < _VOL_TTL:
-        return _vol_cache[symbol]["data"]
+    cache_hit = symbol in _vol_cache and now - _vol_cache[symbol]["ts"] < _VOL_TTL
+    if cache_hit:
+        data = _vol_cache[symbol]["data"]
+        return {**data, "cached_at": int(_vol_cache[symbol]["ts"]), "cache_ttl": _VOL_TTL, "from_cache": True}
 
     try:
         # Get 2 years of daily OHLC
@@ -97,9 +105,9 @@ def event_volatility(symbol="NQ=F"):
         df["date_str"] = df["Date"].astype(str)
 
         # Fetch historical events for the same period
-        events = fetch_events(impact_filter=["High"])
+        ev_resp = fetch_events(impact_filter=["High"])
         event_dates = {}
-        for e in events:
+        for e in ev_resp["events"]:
             if e["timestamp"]:
                 d = datetime.fromtimestamp(e["timestamp"], tz=timezone.utc).date().isoformat()
                 title = e["title"]
@@ -146,7 +154,7 @@ def event_volatility(symbol="NQ=F"):
         }
 
         _vol_cache[symbol] = {"data": result, "ts": now}
-        return result
+        return {**result, "cached_at": int(now), "cache_ttl": _VOL_TTL, "from_cache": False}
 
     except Exception as ex:
         return {"error": str(ex)}
