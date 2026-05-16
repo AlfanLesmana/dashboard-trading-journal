@@ -131,7 +131,7 @@ def event_volatility(symbol="NQ=F"):
             event_day_strs = [d for d, titles in event_dates.items() if title in titles]
             mask = df["date_str"].isin(event_day_strs)
             sub = df[mask]
-            if len(sub) < 2:
+            if len(sub) < 1:
                 continue
             per_type.append({
                 "event": title,

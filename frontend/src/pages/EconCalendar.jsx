@@ -383,7 +383,8 @@ export default function EconCalendar() {
             {vol.per_type && vol.per_type.length > 0 && (
               <>
                 <div>
-                  <p className="label mb-3">ATR by Event Type (avg points, high impact only)</p>
+                  <p className="label mb-1">ATR by Event Type (high impact, recent dates)</p>
+                <p className="text-xs text-gray-500 mb-3">NQ daily range on each event day this week</p>
                   <ResponsiveContainer width="100%" height={Math.max(220, vol.per_type.length * 28)}>
                     <BarChart
                       data={vol.per_type}
