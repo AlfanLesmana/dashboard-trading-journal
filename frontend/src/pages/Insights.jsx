@@ -388,13 +388,13 @@ export default function Insights() {
                 {d.long_win_rate != null && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-emerald-500">Long</span>
-                    <span className="text-xs font-bold text-emerald-400">{d.long_win_rate}% <span className="text-gray-600 font-normal">({d.long_trades}t)</span></span>
+                    <span className="text-xs font-bold text-emerald-400">{d.long_win_rate}% <span className="text-gray-400 font-normal">({d.long_trades}t)</span></span>
                   </div>
                 )}
                 {d.short_win_rate != null && (
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-indigo-400">Short</span>
-                    <span className="text-xs font-bold text-indigo-400">{d.short_win_rate}% <span className="text-gray-600 font-normal">({d.short_trades}t)</span></span>
+                    <span className="text-xs font-bold text-indigo-400">{d.short_win_rate}% <span className="text-gray-400 font-normal">({d.short_trades}t)</span></span>
                   </div>
                 )}
               </div>

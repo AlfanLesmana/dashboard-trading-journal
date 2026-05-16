@@ -52,7 +52,7 @@ export default function Sidebar({ onLogout }) {
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-          <p className="text-[10px] text-gray-600 font-semibold tracking-widest uppercase px-3 py-2">Dashboard</p>
+          <p className="text-[10px] text-gray-500 font-semibold tracking-widest uppercase px-3 py-2">Dashboard</p>
           {links.map(l => (
             <NavLink key={l.to} to={l.to} end={l.to === "/"}
               onClick={() => setOpen(false)}

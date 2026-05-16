@@ -30,11 +30,13 @@ def compute_metrics(df: pd.DataFrame) -> dict:
     best_trade = df["net_pnl"].max()
     worst_trade = df["net_pnl"].min()
 
-    # Max drawdown from equity curve
+    # Max drawdown from equity curve (as % of peak cumulative PnL)
     eq = df.sort_values("trade_date")["net_pnl"].cumsum()
     roll_max = eq.cummax()
     drawdown = eq - roll_max
-    max_dd = drawdown.min()
+    max_dd_dollar = drawdown.min()
+    peak = roll_max.max()
+    max_dd_pct = round((max_dd_dollar / peak) * 100, 2) if peak and peak > 0 else 0.0
 
     return {
         "net_pnl": round(net_pnl_total, 2),
@@ -44,7 +46,8 @@ def compute_metrics(df: pd.DataFrame) -> dict:
         "avg_win": round(avg_win, 2),
         "avg_loss": round(avg_loss, 2),
         "expectancy": round(expectancy, 2),
-        "max_drawdown": round(max_dd, 2),
+        "max_drawdown": max_dd_pct,
+        "max_drawdown_dollar": round(max_dd_dollar, 2),
         "best_trade": round(best_trade, 2),
         "worst_trade": round(worst_trade, 2),
         "win_count": win_count,

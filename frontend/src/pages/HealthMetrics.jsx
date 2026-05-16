@@ -174,7 +174,7 @@ function CategoryBar({ label, score, max, value, detail }) {
         <div className="h-full rounded-full transition-all duration-700"
           style={{ width: `${pct}%`, background: pct >= 66 ? "#10b981" : pct >= 42 ? "#f59e0b" : "#ef4444" }} />
       </div>
-      <p className="text-xs text-gray-600">{detail}</p>
+      <p className="text-xs text-gray-400">{detail}</p>
     </div>
   )
 }
@@ -234,7 +234,7 @@ export default function HealthMetrics() {
               onChange={e => setFilters(f => ({ ...f, date_to: e.target.value }))} />
           </div>
           <div className="lg:col-span-2 flex items-end">
-            <p className="text-xs text-gray-600 pb-2">Filter to analyse performance for a specific time window</p>
+            <p className="text-xs text-gray-400 pb-2">Filter to analyse performance for a specific time window</p>
           </div>
         </div>
       </div>
@@ -332,20 +332,20 @@ export default function HealthMetrics() {
 
           {/* Key ratios */}
           <div className="border-t border-gray-800 pt-4 mt-4">
-            <p className="text-xs text-gray-500 uppercase tracking-wider mb-3">Key Ratios at a Glance</p>
+            <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-3">Key Ratios at a Glance</p>
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: "R:R Ratio",     value: `${fmtAbs(h.rr)}:1`,               color: h.rr >= 1.5 ? "text-emerald-400" : h.rr >= 1 ? "text-amber-400" : "text-red-400" },
                 { label: "Expectancy",    value: `$${fmtAbs(metrics.expectancy)}`,   color: (metrics.expectancy ?? 0) > 0 ? "text-emerald-400" : "text-red-400" },
                 { label: "Avg Win",       value: `$${fmtAbs(Math.abs(metrics.avg_win ?? 0))}`,  color: "text-emerald-400" },
                 { label: "Avg Loss",      value: `-$${fmtAbs(Math.abs(metrics.avg_loss ?? 0))}`, color: "text-red-400" },
-                { label: "Best Trade",    value: fmt(metrics.best_trade),            color: "text-emerald-400" },
-                { label: "Worst Trade",   value: fmt(metrics.worst_trade),           color: "text-red-400" },
+                { label: "Best Trade",    value: `$${fmtAbs(Math.abs(metrics.best_trade ?? 0))}`,  color: "text-emerald-400" },
+                { label: "Worst Trade",   value: `-$${fmtAbs(Math.abs(metrics.worst_trade ?? 0))}`, color: "text-red-400" },
                 { label: "Max Drawdown",  value: `${fmtAbs(Math.abs(metrics.max_drawdown ?? 0), 1)}%`, color: Math.abs(metrics.max_drawdown ?? 0) <= 10 ? "text-emerald-400" : "text-red-400" },
                 { label: "Win Streak",    value: `${insights?.streaks?.max_win_streak ?? "—"}W`,  color: "text-sky-400" },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-gray-800/50 rounded-lg px-3 py-2.5">
-                  <p className="text-xs text-gray-500">{label}</p>
+                  <p className="text-xs text-gray-400">{label}</p>
                   <p className={`text-sm font-bold mt-0.5 ${color}`}>{value}</p>
                 </div>
               ))}

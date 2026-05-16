@@ -1,8 +1,12 @@
 import { useEffect, useState, useCallback } from "react"
 import { api } from "../api"
 
-const fmtMoney = v => v == null || v === "" ? "—"
-  : `$${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmtMoney = v => {
+  if (v == null || v === "") return "—"
+  const n = Number(v)
+  const abs = Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return n < 0 ? `-$${abs}` : `$${abs}`
+}
 
 const EMPTY_FILTERS = { date_from: "", date_to: "", symbol: "", strategy: "", direction: "", result: "" }
 
