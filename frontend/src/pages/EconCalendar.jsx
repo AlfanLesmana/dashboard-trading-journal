@@ -32,6 +32,178 @@ function countryFlag(code) {
   return CURRENCY_FLAGS[code?.toUpperCase()] || { flag: "🌐", label: code || "?" }
 }
 
+// ── USD Forecast Engine ──
+// Rules: does a HIGHER reading push USD up or down?
+// Format: { bullishIfHigher: bool, reason: string, caveat?: string }
+const USD_RULES = [
+  // ── Employment ──
+  { match: ["non-farm payroll", "nfp", "non-farm employment"],
+    bullishIfHigher: true,
+    reason: "More jobs = strong economy → Fed keeps rates higher → USD strengthens" },
+  { match: ["adp non-farm", "adp employment"],
+    bullishIfHigher: true,
+    reason: "ADP is the private payrolls preview — strong print = positive jobs expectations" },
+  { match: ["unemployment rate"],
+    bullishIfHigher: false,
+    reason: "Rising unemployment signals labor market weakness → Fed may cut rates → USD weakens" },
+  { match: ["unemployment claim", "initial claim", "jobless claim", "continuing claim"],
+    bullishIfHigher: false,
+    reason: "More claims = workers losing jobs → economic slowdown fear → bearish for USD" },
+  { match: ["average hourly earnings"],
+    bullishIfHigher: true,
+    reason: "Higher wages = inflation pressure → Fed stays hawkish → USD bullish" },
+
+  // ── Inflation ──
+  { match: ["cpi", "consumer price index"],
+    bullishIfHigher: true,
+    reason: "Hotter inflation keeps the Fed hawkish (slower to cut), supporting USD short-term",
+    caveat: "If CPI runs too hot it may signal stagflation risk — watch Fed reaction" },
+  { match: ["ppi", "producer price index"],
+    bullishIfHigher: true,
+    reason: "PPI leads CPI — rising producer prices signal inflation pipeline, Fed stays tight" },
+  { match: ["pce price", "core pce", "personal consumption expenditure"],
+    bullishIfHigher: true,
+    reason: "PCE is the Fed's preferred inflation gauge — above target = hawkish bias = USD up" },
+
+  // ── Growth ──
+  { match: ["gdp"],
+    bullishIfHigher: true,
+    reason: "Stronger growth = healthy economy → higher rate expectations → USD bullish" },
+  { match: ["retail sales"],
+    bullishIfHigher: true,
+    reason: "Consumer spending drives 70% of US GDP — strong sales = economic strength" },
+  { match: ["industrial production"],
+    bullishIfHigher: true,
+    reason: "Higher output = manufacturing expansion → GDP growth signal → USD positive" },
+  { match: ["durable goods"],
+    bullishIfHigher: true,
+    reason: "Big-ticket orders reflect business confidence and future production growth" },
+
+  // ── Sentiment / PMI ──
+  { match: ["ism manufacturing", "manufacturing pmi"],
+    bullishIfHigher: true,
+    reason: "Above 50 = expansion. Higher print signals factory activity, USD-positive" },
+  { match: ["ism services", "services pmi", "ism non-manufacturing"],
+    bullishIfHigher: true,
+    reason: "Services is 80% of US economy — strong PMI = robust activity → USD up" },
+  { match: ["consumer confidence", "consumer sentiment", "michigan"],
+    bullishIfHigher: true,
+    reason: "Confident consumers spend more → growth → supports USD" },
+
+  // ── Housing ──
+  { match: ["building permit", "housing start"],
+    bullishIfHigher: true,
+    reason: "Construction activity = economic expansion → mild USD positive" },
+  { match: ["existing home sales", "new home sales"],
+    bullishIfHigher: true,
+    reason: "Strong housing demand signals consumer health and credit availability" },
+
+  // ── Trade ──
+  { match: ["trade balance"],
+    bullishIfHigher: true,   // less negative = more bullish
+    reason: "A narrowing trade deficit (less negative) reduces USD outflows → mild bullish" },
+
+  // ── Fed / Policy ──
+  { match: ["fomc", "federal funds rate", "interest rate decision", "fed rate"],
+    bullishIfHigher: true,
+    reason: "Higher rates = better yield on USD assets → capital inflows → strong USD",
+    caveat: "If rate is held when a cut was expected, that is also USD-bullish surprise" },
+  { match: ["fomc meeting minutes", "fed minutes"],
+    bullishIfHigher: null,  // tone-dependent
+    reason: "Hawkish tone (concerns about inflation, reluctance to cut) → USD bullish. Dovish tone (growth worry, open to cuts) → USD bearish",
+    caveat: null },
+  { match: ["fed chair", "powell", "fed speak", "fomc press"],
+    bullishIfHigher: null,
+    reason: "Hawkish language (inflation fight, no rush to cut) → USD up. Dovish signals (soft landing, rate cuts coming) → USD down",
+    caveat: null },
+]
+
+function matchRule(title) {
+  const t = title.toLowerCase()
+  return USD_RULES.find(r => r.match.some(kw => t.includes(kw))) || null
+}
+
+// Parse numeric value from strings like "2.3%", "-12K", "1.2M", "105.2"
+function parseVal(str) {
+  if (!str) return NaN
+  const cleaned = str.replace(/[%KkMmBb,]/g, "").trim()
+  const n = parseFloat(cleaned)
+  if (isNaN(n)) return NaN
+  // Normalise K/M/B scale so "120K" vs "0.12M" compare correctly
+  if (/[Kk]/.test(str)) return n * 1000
+  if (/[Mm]/.test(str)) return n * 1000000
+  if (/[Bb]/.test(str)) return n * 1000000000
+  return n
+}
+
+function getVerdict(event) {
+  if (event.country !== "USD") return null
+  if (event.impact !== "High")  return null
+  const rule = matchRule(event.title)
+  if (!rule) return null
+
+  // Tone-only events (Fed speeches) — no numeric comparison possible
+  if (rule.bullishIfHigher === null) {
+    return {
+      verdict: "watch",
+      label: "Watch Tone",
+      color: "text-blue-400",
+      bg: "bg-blue-500/10 border-blue-500/30",
+      icon: "👀",
+      reason: rule.reason,
+      caveat: rule.caveat,
+      rule,
+    }
+  }
+
+  const fc = parseVal(event.forecast)
+  const pr = parseVal(event.previous)
+
+  // No forecast available yet
+  if (isNaN(fc) || isNaN(pr)) {
+    return {
+      verdict: "pending",
+      label: "No Forecast Yet",
+      color: "text-gray-400",
+      bg: "bg-gray-700/30 border-gray-600/30",
+      icon: "⏳",
+      reason: rule.reason,
+      caveat: rule.caveat,
+      rule,
+    }
+  }
+
+  const higher = fc > pr
+  const same   = Math.abs(fc - pr) < 0.001
+  if (same) {
+    return {
+      verdict: "neutral",
+      label: "Neutral",
+      color: "text-gray-300",
+      bg: "bg-gray-700/30 border-gray-600/30",
+      icon: "➡️",
+      reason: "Forecast matches previous — no directional surprise expected",
+      caveat: rule.caveat,
+      rule,
+      fc, pr,
+    }
+  }
+
+  const bullish = rule.bullishIfHigher ? higher : !higher
+  return {
+    verdict: bullish ? "bullish" : "bearish",
+    label: bullish ? "Bullish USD" : "Bearish USD",
+    color: bullish ? "text-emerald-400" : "text-red-400",
+    bg: bullish ? "bg-emerald-500/10 border-emerald-500/30" : "bg-red-500/10 border-red-500/30",
+    icon: bullish ? "📈" : "📉",
+    reason: rule.reason,
+    caveat: rule.caveat,
+    rule,
+    fc, pr,
+    higher,
+  }
+}
+
 // ── localStorage cache helpers ──
 const LS_EVENTS_KEY = "econ_events_cache"
 const LS_VOL_PREFIX = "econ_vol_cache_"
@@ -239,6 +411,19 @@ export default function EconCalendar() {
   // Next upcoming high-impact event (from unfiltered — check all High events)
   const nextEvent = events.find(e => e.impact === "High" && e.timestamp && e.timestamp * 1000 > now)
 
+  // USD Outlook verdicts — read from full cache (unfiltered by impact toggle) so USD High always shows
+  const allCachedEvents = (() => {
+    try { const r = localStorage.getItem(LS_EVENTS_KEY); return r ? (JSON.parse(r).data || []) : [] } catch { return [] }
+  })()
+  // Fall back to current events state if cache is somehow empty
+  const eventPool = allCachedEvents.length > 0 ? allCachedEvents : events
+  const usdVerdicts = eventPool
+    .filter(e => e.country === "USD" && e.impact === "High" && e.timestamp && e.timestamp * 1000 > now - 3600000)
+    .map(e => ({ ...e, verdict: getVerdict(e) }))
+    .filter(e => e.verdict !== null)
+    .sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
+    .slice(0, 8)
+
   return (
     <div className="space-y-4 pb-8">
       {/* Header */}
@@ -314,6 +499,65 @@ export default function EconCalendar() {
           <div>
             <p className="text-sm font-semibold text-amber-400">Forex Factory rate limited</p>
             <p className="text-xs text-gray-400 mt-0.5">Serving cached data. FF allows only 2 requests per 5 min — limit resets automatically. Avoid manual refresh for now.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── USD Outlook ── */}
+      {usdVerdicts.length > 0 && (
+        <div className="card p-5 space-y-4">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div>
+              <h3 className="card-title flex items-center gap-2">🇺🇸 USD Outlook <span className="text-xs font-normal text-gray-500 ml-1">— Upcoming High Impact</span></h3>
+              <p className="text-xs text-gray-500 mt-0.5">Forecast-based directional bias. Based on consensus vs previous — not a guarantee.</p>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border bg-gray-800/60 border-gray-700/50 text-gray-500">
+              <span>⚠️</span><span>Educational only — always manage risk</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {usdVerdicts.map((e, i) => {
+              const v = e.verdict
+              const diffStr = (!isNaN(v.fc) && !isNaN(v.pr))
+                ? `Fcst ${e.forecast} vs Prev ${e.previous}`
+                : e.forecast ? `Fcst ${e.forecast}` : ""
+              return (
+                <div key={e.id || i} className={`rounded-xl border p-4 space-y-2.5 ${v.bg}`}>
+                  {/* Header row */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-base flex-none">🇺🇸</span>
+                      <p className="text-sm font-bold text-gray-100 truncate">{e.title}</p>
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full border whitespace-nowrap flex items-center gap-1 ${v.bg} ${v.color}`}>
+                      <span>{v.icon}</span><span>{v.label}</span>
+                    </span>
+                  </div>
+
+                  {/* Date + forecast numbers */}
+                  <div className="flex items-center justify-between text-xs text-gray-400">
+                    <span className="mono">{fmtDateLocal(e.datetime_utc)} · {fmtTimeLocal(e.datetime_utc)}</span>
+                    {diffStr && <span className={`font-semibold ${v.color}`}>{diffStr}</span>}
+                  </div>
+
+                  {/* Reason */}
+                  <p className="text-xs text-gray-300 leading-relaxed">{v.reason}</p>
+
+                  {/* Caveat */}
+                  {v.caveat && (
+                    <p className="text-[11px] text-gray-500 italic border-t border-gray-700/40 pt-2">{v.caveat}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-4 pt-1 flex-wrap text-xs text-gray-500">
+            <span className="flex items-center gap-1"><span className="text-emerald-400 font-bold">📈 Bullish USD</span> — forecast stronger than previous, positive for dollar</span>
+            <span className="flex items-center gap-1"><span className="text-red-400 font-bold">📉 Bearish USD</span> — forecast weaker, pressure on dollar</span>
+            <span className="flex items-center gap-1"><span className="text-blue-400 font-bold">👀 Watch Tone</span> — direction depends on speech/statement language</span>
           </div>
         </div>
       )}
