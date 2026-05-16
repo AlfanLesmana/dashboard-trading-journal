@@ -162,7 +162,7 @@ export default function EconCalendar() {
     api.econEvents()
       .then(resp => {
         const all = resp?.events || []
-        lsSet(cacheKey, all)
+        if (!resp?.rate_limited) lsSet(cacheKey, all)
         setEvSavedAt(Date.now())
         setRateLimited(resp?.rate_limited || false)
         const filtered = all.filter(e =>
@@ -293,7 +293,10 @@ export default function EconCalendar() {
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-amber-500 border-t-transparent" />
           </div>
         ) : events.length === 0 ? (
-          <p className="text-gray-500 text-center py-16">No events found. Try adjusting filters.</p>
+          <div className="text-center py-16 space-y-2">
+            <p className="text-gray-400 font-medium">{rateLimited ? "⏳ Waiting for Forex Factory rate limit to clear" : "No events found"}</p>
+            <p className="text-gray-600 text-xs">{rateLimited ? "FF allows 2 requests per 5 min. Data will auto-refresh once the block lifts." : "Try adjusting the impact filters above."}</p>
+          </div>
         ) : (
           <div className="divide-y divide-gray-700/40">
             {sortedDays.map(day => (

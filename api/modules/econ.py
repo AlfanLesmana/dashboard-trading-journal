@@ -55,15 +55,18 @@ def fetch_events(impact_filter=None):
                 events.extend(r.json())
             except Exception:
                 pass
-        # If rate limited and we have stale cache, serve it rather than empty
-        if rate_limited and _events_cache["data"] is not None:
-            return {
-                "events": _apply_filter(_events_cache["data"], impact_filter),
-                "cached_at": int(_events_cache["ts"]),
-                "cache_ttl": _CACHE_TTL,
-                "from_cache": True,
-                "rate_limited": True,
-            }
+        # If rate limited — serve stale cache if available, else return empty with flag
+        if rate_limited:
+            if _events_cache["data"] is not None:
+                return {
+                    "events": _apply_filter(_events_cache["data"], impact_filter),
+                    "cached_at": int(_events_cache["ts"]),
+                    "cache_ttl": _CACHE_TTL,
+                    "from_cache": True,
+                    "rate_limited": True,
+                }
+            else:
+                return {"events": [], "cached_at": 0, "cache_ttl": _CACHE_TTL, "from_cache": False, "rate_limited": True}
         # Parse all events and store parsed form in cache
         parsed = []
         for e in events:
