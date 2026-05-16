@@ -61,20 +61,14 @@ function fmtAgo(ms) {
 }
 
 // ── Cache status badge ──
-function CacheBadge({ savedAt, ttlMs, onRefresh, loading }) {
-  const now = useNow(10000) // refresh badge every 10s
-  if (!savedAt) return null
-  const ageMs = now - savedAt
-  const stale = ageMs > ttlMs * 0.8
+function CacheBadge({ savedAt, onRefresh, loading }) {
+  const now = useNow(10000)
   return (
-    <div className={`flex items-center gap-2 text-xs px-2.5 py-1 rounded-full border ${
-      stale ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
-             : "bg-gray-800 border-gray-700/50 text-gray-500"
-    }`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${stale ? "bg-amber-400" : "bg-emerald-400"}`} />
-      <span>Cached · {fmtAgo(savedAt)}</span>
-      <button onClick={onRefresh} disabled={loading}
-        className="hover:text-gray-300 disabled:opacity-40 transition-colors ml-0.5">
+    <div className="flex items-center gap-2 text-xs px-2.5 py-1 rounded-full border bg-gray-800 border-gray-700/50 text-gray-400">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+      <span>{savedAt ? `Cached · ${fmtAgo(savedAt)}` : "No cache"}</span>
+      <button onClick={onRefresh} disabled={loading} title="Refresh from Forex Factory (manual only)"
+        className="hover:text-gray-100 disabled:opacity-40 transition-colors ml-0.5 text-sm">
         {loading ? "…" : "↻"}
       </button>
     </div>
@@ -142,33 +136,33 @@ export default function EconCalendar() {
   const [volSymbol, setVolSymbol]   = useState("NQ=F")
   const now = useNow()
 
+  const applyFilter = (all) => all.filter(e =>
+    impactFilter.map(i => i.toLowerCase()).includes((e.impact || "").toLowerCase())
+  )
+
   const loadEvents = (force = false) => {
     const cacheKey = LS_EVENTS_KEY
+    // Always use cache on page load (ignore TTL) — only bypass on manual refresh
     if (!force) {
-      const cached = lsGet(cacheKey, CLIENT_EVENTS_TTL)
-      if (cached) {
-        // apply client-side impact filter on cached data
-        const filtered = cached.data.filter(e =>
-          impactFilter.map(i => i.toLowerCase()).includes((e.impact || "").toLowerCase())
-        )
-        setEvents(filtered)
-        setEvSavedAt(cached.savedAt)
-        setLoadingEv(false)
-        return
-      }
+      try {
+        const raw = localStorage.getItem(cacheKey)
+        if (raw) {
+          const { data, savedAt } = JSON.parse(raw)
+          setEvents(applyFilter(data || []))
+          setEvSavedAt(savedAt)
+          setLoadingEv(false)
+          return
+        }
+      } catch {}
     }
     setLoadingEv(true)
-    // Fetch all impacts, filter client-side so we can reuse same cache for filter changes
     api.econEvents()
       .then(resp => {
         const all = resp?.events || []
-        if (!resp?.rate_limited) lsSet(cacheKey, all)
+        if (!resp?.rate_limited && all.length > 0) lsSet(cacheKey, all)
         setEvSavedAt(Date.now())
         setRateLimited(resp?.rate_limited || false)
-        const filtered = all.filter(e =>
-          impactFilter.map(i => i.toLowerCase()).includes((e.impact || "").toLowerCase())
-        )
-        setEvents(filtered)
+        setEvents(applyFilter(all))
       })
       .catch(() => setEvents([]))
       .finally(() => setLoadingEv(false))
@@ -176,20 +170,24 @@ export default function EconCalendar() {
 
   const loadVol = (sym, force = false) => {
     const cacheKey = LS_VOL_PREFIX + sym
+    // Always use cache on page load — only bypass on manual refresh
     if (!force) {
-      const cached = lsGet(cacheKey, CLIENT_VOL_TTL)
-      if (cached) {
-        setVol(cached.data)
-        setVolSavedAt(cached.savedAt)
-        setLoadingVol(false)
-        return
-      }
+      try {
+        const raw = localStorage.getItem(cacheKey)
+        if (raw) {
+          const { data, savedAt } = JSON.parse(raw)
+          setVol(data)
+          setVolSavedAt(savedAt)
+          setLoadingVol(false)
+          return
+        }
+      } catch {}
     }
     setLoadingVol(true)
     setVol(null)
     api.econVolatility(sym)
       .then(resp => {
-        lsSet(cacheKey, resp)
+        if (resp && !resp.error) lsSet(cacheKey, resp)
         setVol(resp)
         setVolSavedAt(Date.now())
       })
@@ -197,7 +195,7 @@ export default function EconCalendar() {
       .finally(() => setLoadingVol(false))
   }
 
-  // On mount and filter change — try cache first
+  // On mount — always load from cache; filter change re-applies filter to cached data
   useEffect(() => { loadEvents() }, [impactFilter.join(",")])
   useEffect(() => { loadVol(volSymbol) }, [volSymbol])
 
@@ -229,8 +227,7 @@ export default function EconCalendar() {
           <p className="page-sub">High-impact news events &amp; historical volatility</p>
         </div>
         <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <CacheBadge savedAt={evSavedAt} ttlMs={CLIENT_EVENTS_TTL} loading={loadingEv}
-            onRefresh={() => loadEvents(true)} />
+          <CacheBadge savedAt={evSavedAt} loading={loadingEv} onRefresh={() => loadEvents(true)} />
           {/* Impact filter toggles */}
           {["High", "Medium", "Low"].map(level => {
             const m = IMPACT_META[level]
@@ -378,8 +375,7 @@ export default function EconCalendar() {
             <p className="text-sm text-gray-400 mt-0.5">Daily range (ATR) on high-impact event days vs normal days — last 2 years</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <CacheBadge savedAt={volSavedAt} ttlMs={CLIENT_VOL_TTL} loading={loadingVol}
-              onRefresh={() => loadVol(volSymbol, true)} />
+            <CacheBadge savedAt={volSavedAt} loading={loadingVol} onRefresh={() => loadVol(volSymbol, true)} />
             <select
               className="select text-sm w-auto min-w-[160px]"
               value={volSymbol}
